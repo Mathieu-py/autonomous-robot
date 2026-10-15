@@ -1,6 +1,6 @@
 # Autonomous Mobile Robot — Build Plan
 
-Build a small differential-drive robot and write its software layer by layer, until it maps a room by itself and drives to any point clicked on the map. Order the parts now, and write the planner and path follower in simulation while they ship. Parts cost roughly CAD $700–1,000.
+Build a small differential-drive robot and write its software layer by layer, until it maps a room by itself and drives to any point clicked on the map. Order the parts now, and write the planner and path follower in simulation while they ship. Parts cost about CAD $590 before tax; [parts-list.md](parts-list.md) has the exact parts and links.
 
 ## Final demo
 
@@ -43,24 +43,24 @@ While the parts ship, the planner, path follower and avoidance get written and t
 
 ## Hardware and budget
 
-Build a two-wheel-drive robot on the [linorobot2](https://github.com/linorobot/linorobot2) reference design, but write the motor firmware from scratch. linorobot2 supplies a proven parts list, wiring and robot description, and has Jazzy support. Its [firmware](https://github.com/linorobot/linorobot2_hardware) already runs on the Pico 2 W and ESP32 with a BNO085 IMU, so it is the fallback if the custom firmware stalls.
+Build a two-wheel-drive robot on the [linorobot2](https://github.com/linorobot/linorobot2) reference design, but write the motor firmware from scratch. linorobot2 supplies a proven parts list, wiring and robot description, and has Jazzy support. Its [firmware](https://github.com/linorobot/linorobot2_hardware) already runs on the Pico 2 W and ESP32 with an MPU-6050 or BNO085 IMU, so it is the fallback if the custom firmware stalls.
 
 TurtleBot 4 and 3 are ruled out: the Create 3 base and the Dynamixel servos hide the motor control this project should own.
 
 | Part | Selection | Approx. CAD | Notes |
 | --- | --- | --- | --- |
-| Compute | Raspberry Pi 5 (8 GB), cooling, storage | 275 | Runs Ubuntu 24.04 and Jazzy |
-| Chassis and motors | Rigid 2WD chassis, geared DC motors with quadrature encoders, caster | 170 | Spend here: poor encoders and wheel slip spoil every localization measurement |
-| LiDAR | RPLIDAR C1 or LDROBOT LD19 | 150 at most | Both supported by linorobot2; expected below the A1's price |
-| Battery and power | Protected battery, regulators, fuse, physical motor cutoff | 100 | |
-| Microcontroller, driver, IMU | Pico 2 W or ESP32; dual-channel driver rated for stall current; BNO085 | 85 | All supported by linorobot2's firmware |
-| Ground truth | Overhead camera and printed AprilTags | 50 | Optional; measures drift precisely |
-| Mounting, wiring, contingency | | 100 | |
-| **Total** | | **about 930** | Within the original CAD $700–1,000 range |
+| Compute | Raspberry Pi 5 (4 GB), active cooler, 32 GB microSD | 182 | Runs Ubuntu 24.04 and Jazzy; the 8 GB costs $90 more after 2026's price rises |
+| Chassis and motors | 2× JGB37-520 12 V encoder gear motors with wheels, ball caster, 3D-printed deck, standoffs | 74 | 2464 counts per wheel turn; poor encoders and wheel slip spoil every localization measurement |
+| LiDAR | RPLIDAR C1 | 94 | Time-of-flight, 12 m; supported by linorobot2 |
+| Battery and power | 2× 3S 2200 mAh LiPo, 5 V 5 A converter, fuse, physical motor cutoff | 89 | |
+| Microcontroller, driver, IMU | Pico 2 W; Cytron MDD3A (3 A continuous, 5 A peak); MPU-6050 | 44 | All supported by linorobot2's firmware |
+| Charging and safety | Balance charger, LiPo bag, low-voltage alarm | 52 | |
+| Wiring and small parts | Perfboard, wire, 3.3 V regulators, resistors, capacitors | 55 | Estimate |
+| **Total** | | **about 590** | Before tax; soldering iron and multimeter borrowed |
 
-Prices are the original brief's estimates plus the camera line; none was re-quoted.
+Prices were checked on 15 October 2026 and exclude tax and shipping. The overhead ground-truth camera is dropped from the budget: a phone looking down on the room, with printed AprilTags, does the same job.
 
-Before ordering, turn the table into exact part numbers and check that they fit together: motor voltage against the battery, the driver's current rating against the motors' stall current, and encoder signal levels against the microcontroller's 3.3 V logic. The Pi 5 also needs a regulator that supplies 5 V at up to 5 A. Starting from linorobot2's tested parts cuts this work down.
+[parts-list.md](parts-list.md) turns this table into exact part numbers, with links, and checks that they fit together: motor voltage against the battery, the driver's current rating against the motors' stall current, encoder signal levels against the Pico's 3.3 V logic, and a 5 V, 5 A supply for the Pi 5. Two of these still need a bench test when the parts arrive: the motors' real stall current, and whether the encoders run at 3.3 V.
 
 ## Computing setup
 
@@ -98,7 +98,8 @@ The likeliest problem is hardware bring-up taking longer than planned; the simul
 
 The first two weeks get the parts ordered and the simulation running.
 
-- [ ] Pick exact part numbers, check they fit together (see Hardware and budget), then order
+- [x] Pick exact part numbers and check they fit together (see [parts-list.md](parts-list.md))
+- [ ] Order the parts, motors first
 - [ ] Install WSL2 with Ubuntu 24.04, ROS 2 Jazzy and Gazebo Harmonic
 - [ ] Run `glxinfo -B` and a Gazebo world with a GPU LiDAR; check the renderer and real-time factor
 - [ ] Run the Nav2 TurtleBot simulation and send it a goal, to see a full stack working
@@ -109,6 +110,7 @@ The first two weeks get the parts ordered and the simulation running.
 ## Sources
 
 - Autonomous Mobile Robot Project Brief, 15 October 2026 (the original brief)
+- [parts-list.md](parts-list.md): part prices and links, checked 15 October 2026
 - [linorobot2](https://github.com/linorobot/linorobot2) and [linorobot2_hardware](https://github.com/linorobot/linorobot2_hardware): supported distributions, boards, IMUs and LiDARs
 - [Microsoft WSL networking docs](https://learn.microsoft.com/en-us/windows/wsl/networking): mirrored mode and multicast
 - [ROS 2 Lyrical Luth release notes](https://docs.ros.org/en/kilted/Releases/Release-Lyrical-Luth.html)
