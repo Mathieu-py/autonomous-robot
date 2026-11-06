@@ -5,7 +5,7 @@ The robot's parts cost about CAD $645, and your own soldering iron and multimete
 - linorobot2's firmware supports every part, so it remains the fallback.
 - The encoders and IMU are good enough for the odometry and EKF in milestone 2.
 
-Prices and stock were checked on 17 October 2026. The parts were ordered that day and had arrived by 28 October (see [Order status](#order-status)). The [bench tests](#bench-tests) haven't been run yet.
+Prices and stock were checked on 17 October 2026. The parts were ordered that day and have arrived (see [Order status](#order-status)). [Bench tests](bench-tests.md) 1–5 passed by 6 November.
 
 Every part that goes on the robot is bought, not borrowed, so the robot can stay assembled. You also buy the two tools you'll use every week, a soldering iron and a multimeter. Only the bench power supply, oscilloscope and calipers are borrowed from the [DEN](https://den.uwaterloo.ca/inventory/search), for a few one-off tests. Your SYDE 192L kit already covers the breadboard, jumper wires, wire cutters, buttons and LEDs.
 
@@ -95,18 +95,18 @@ About $57 of that is estimates: the deck and the small parts. Shipping, import f
 
 ## Order status
 
-Everything except the small parts was ordered on 17 October 2026 and had arrived by 28 October, ahead of the delivery estimates.
+Everything except the small parts was ordered on 17 October 2026. The MDD3A arrived on 6 November, and the rest had arrived by 28 October, ahead of the delivery estimates.
 
 - [x] **Amazon.ca:** the 16 Amazon listings, $401.60.
 - [x] **CanaKit:** Pi 5 and cooler, $161.90.
 - [x] **PiShop:** Pico 2 WH, MPU-6050, microSD card, micro-HDMI cable and micro-USB cable, $69.65.
 - [x] **MDD3A:** from RobotShop or DigiKey.
 - [ ] **Small parts:** check the DEN's free items and RidgidWare, then buy whatever is left.
-- [ ] **Borrow tools from the [DEN](https://den.uwaterloo.ca/inventory/search)** (free for SYDE and BME undergrads; book a pickup with Chris McClellan, E7-6414):
+- [x] **Borrow tools from the [DEN](https://den.uwaterloo.ca/inventory/search)** (free for SYDE and BME undergrads; book a pickup with Chris McClellan, E7-6414):
   - digital caliper
-  - 2231A-30-3 bench power supply (0–30 V, 3 A), for bench tests 1, 4 and 6. Its fine if not returned is $1,000.
-  - oscilloscope, for bench test 3 (optional)
-  - Return them when the build is done.
+  - bench power supply (0–30 V, 3 A), for bench tests 1, 4 and 6. The 2231A-30-3's fine if not returned is $1,000.
+  - 2 banana-to-alligator leads
+  - Keep the bench supply until test 6 passes, then return everything by the loan's due date.
 
 ## Fallbacks and optional upgrades
 
@@ -126,9 +126,9 @@ These aren't part of the build. Use them only if a bench test fails, or if you d
 | --- | --- | --- |
 | Motor voltage vs battery | 12 V motors, 3S LiPo (11.1 V nominal, 12.6 V full) | OK. A full charge is 5% over the motor rating, so cap the PWM duty at about 95% (12 / 12.6) in firmware. |
 | Driver voltage | MDD3A (16 V max) vs 12.6 V | OK. The DRV8833 (10.8 V max) would not be. |
-| Driver current vs motor stall | MDD3A 3 A continuous, 5 A peak | Probably OK. The motor listing gives no stall current; other sellers of this motor list 2.3–2.4 A. Measure it (see below). |
+| Driver current vs motor stall | MDD3A 3 A continuous, 5 A peak | OK for short stalls. [Bench test 4](bench-tests.md#4-spin-and-stall-current) estimated about 2.4–3.2 A, so the firmware must not leave a motor stalled. |
 | Driver inputs | MDD3A datasheet | OK. Two PWM inputs per motor: A high and B low runs forward, A low and B high runs backward, both low or both high brakes. Logic high is anything from 1.7 V, so 3.3 V works. |
-| Encoder signals vs 3.3 V logic | Encoder supply voltage not stated on the listing; Pico pins take 3.3 V only | Power the encoders at 3.3 V so their outputs are 3.3 V. If they need 5 V, put a 10k/20k divider on each A/B line. |
+| Encoder signals vs 3.3 V logic | Encoder supply voltage not stated on the listing; Pico pins take 3.3 V only | OK. [Bench test 3](bench-tests.md#3-encoders-at-33-v) confirmed they work at 3.3 V, so no divider is needed. |
 | Pi 5 supply | Klnuoxj 5 V 5 A converter; RPLIDAR C1 draws 230 mA running and **800 mA at startup** | The converter doesn't negotiate USB-PD, so the Pi limits its USB ports to 600 mA total, which is below the LiDAR's startup draw. Add `usb_max_current_enable=1` to `/boot/firmware/config.txt`; the converter is rated 5 A. Its output is 5.0 V rather than the official supply's 5.1 V, so check for undervoltage with `vcgencmd get_throttled`. If that shows undervoltage, remove the setting and move to a Pololu D36V50F5 (5.5 A, about $60–70 with shipping). |
 | Mounting | Pi 5: M2.5 holes<br>RPLIDAR C1: M2.5 threaded holes, screws no deeper than 4 mm<br>MDD3A: 3 mm holes<br>Pico 2 W and MPU-6050: 2.1–2.5 mm holes | The nylon M2/M2.5/M3 kit covers all of them: M2 for the Pico and MPU-6050, M2.5 for the Pi and LiDAR, M2.5 or M3 for the MDD3A. |
 | Software support | Pico 2 W, MPU-6050, MDD3A, RPLIDAR C1 | Pico 2 W, MPU-6050 and C1 are in linorobot2's Jazzy source. The MDD3A's two-PWM inputs match linorobot2's two-PWM driver mode (`USE_BTS7960_MOTOR_DRIVER`), but linorobot2 doesn't name the board. |
@@ -144,7 +144,7 @@ These aren't part of the build. Use them only if a bench test fails, or if you d
 
 - **Motor connector:** each motor has a 6-pin connector labelled **M1, GND, C1, C2, VCC, M2**. M1 and M2 go to the MDD3A's motor output. C1 and C2 are the encoder A/B signals. VCC and GND power the encoder.
 - **Pico to MDD3A:** two PWM pins per motor.
-- **Encoders:** C1/C2 go to the Pico on consecutive GPIO pairs, because linorobot2's PIO encoder needs pairs.
+- **Encoders:** C1/C2 go to the Pico on consecutive GPIO pairs, because linorobot2's PIO encoder needs pairs. Turn on the Pico's internal pull-ups, as the bench test did.
 - **Encoder power:** a separate AMS1117-3.3 module, fed from the Pico's VBUS pin (5 V from the Pi's USB). Don't use the Pico's own 3V3 pin.
 - **IMU:** MPU-6050 on the Pico's I2C (GP4/GP5), address 0x68. The Adafruit board has 10 kΩ pull-ups; add 2 kΩ pull-ups to 3.3 V as linorobot2 requires.
 - **Battery sensing:** a 33k/10k divider from the battery to GP28, which keeps the pin below 3.3 V.
@@ -159,36 +159,10 @@ These aren't part of the build. Use them only if a bench test fails, or if you d
 
 ## Bench tests
 
-These haven't been run yet. Run them before soldering, cutting or crimping anything, so the parts stay returnable. Most Amazon return windows close around 17–19 November 2026, and the motors' around 23 November. The one exception is the MPU-6050, whose header pins are fine to solder.
-
-**Start with the batteries.** Look for puffing, dents or damaged wires, then plug a voltage alarm onto each pack's balance plug.
-- Expect 3.7–3.9 V per cell, with all three within about 0.05 V of each other. Return a pack if any cell is under 3.0 V or far from the others.
-- Don't charge them until you first need them. Do that first charge inside the LiPo bag, on a hard surface, and stay nearby.
-
-1. **Pi power:**
-   - Flash the card with [Raspberry Pi Imager](https://www.raspberrypi.com/software/): Raspberry Pi 5, then Other general-purpose OS → Ubuntu → **Ubuntu Server 24.04.x LTS (64-bit)**. Set the hostname, user, WiFi and SSH in its customisation step. Don't use 26.04, which ROS 2 Jazzy doesn't support. If Imager doesn't list 24.04, the image is on [cdimage.ubuntu.com](https://cdimage.ubuntu.com/releases/24.04/release/).
-   - Boot from your USB-C power supply, run `sudo apt update && sudo apt full-upgrade -y`, add `usb_max_current_enable=1` to `/boot/firmware/config.txt`, and reboot.
-   - Set the bench supply to 12 V, clip it to the converter's input wires (no soldering), and plug the converter into the Pi.
-   - Run `stress-ng --cpu 4 --timeout 120s` (install it with `sudo apt install stress-ng`), and meanwhile check `sudo vcgencmd get_throttled` and `sudo vcgencmd pmic_read_adc EXT5V_V`. If `vcgencmd` is missing, install `libraspberrypi-bin`, or `raspi-utils` if that package doesn't exist.
-   - Pass: `throttled=0x0` throughout, and the 5 V reading stays at 4.8 V or above.
-2. **LiDAR on the laptop:** plug it in through your USB-C adapter. WSL2 doesn't see USB devices by default, so pass the adapter through with [usbipd-win](https://github.com/dorssel/usbipd-win). Run `sllidar_ros2`'s C1 launch file and check the scan in RViz. Alternatively, plug it into the Pi and view the scan from the laptop once the Pi has ROS 2.
-3. **Encoders at 3.3 V:** with the Pico on a breadboard, power one encoder from the Pico's 3V3(OUT) pin, for this test only, and connect C1 and C2 to GP2 and GP3. Leave M1 and M2 unconnected. Count edges in MicroPython while turning the wheel by hand: the count should go up one way and down the other.
-   - If it stays at 0, the encoder may need 5 V. Power it from VBUS with C1 disconnected from the Pico, and measure C1 with the multimeter while turning. If it swings to about 5 V, use the 10k/20k divider.
-4. **Spin and stall current:** clip the bench supply to M1 and M2.
-   - At 12 V with a 0.5 A limit, the motor should spin smoothly and draw about 0.12 A or less.
-   - At 3 V with about a 1.5 A limit, hold the wheel still for under 2 seconds and read the current. Multiply by 4 to get the 12 V stall current. If it's over 5 A, limit the duty cycle in firmware or move to the Cytron MDD10A.
-5. **Odometry constants,** for both motors:
-   - Measure the wheel diameter with calipers. The listing doesn't state it; about 65 mm is expected.
-   - Count encoder ticks over 10 marked wheel turns. About 2464 per turn is expected: 11 pulses × 4 edges × 56:1 gearbox.
-6. **Bumper and low-battery cutoff:** once the firmware runs, lift the wheels off the bench.
-   - Press each bumper switch while the wheels spin; the motors must stop.
-   - Run the battery input from the bench supply and lower it past 10.5 V (3.5 V per cell); the motors must stop.
-7. **MPU-6050:** solder its header pins, then wire VIN to the Pico's 3V3(OUT), GND to GND, SDA to GP4 and SCL to GP5. An I2C scan should find address 0x68. Lying flat, the Z acceleration should read about 16384 (1 g).
+The steps and results are in [bench-tests.md](bench-tests.md). Tests 1–5 have passed, so the parts can now be soldered and modified.
 
 ## Not verified
 
-- **Motor specs:** the listing doesn't state the stall current, encoder supply voltage, pulses per revolution or wheel size. Bench tests 3–5 measure them.
-- **The converter's output under load:** it's 5.0 V with no USB-PD. Reviews say it runs a Pi 5, but bench test 1 is the real check.
 - **XT60 connectors:** the listing says Amass, but the brand field doesn't, so they may not be genuine.
 - **RobotShop's MDD3A price:** search snippet only. Their site blocked direct reads.
 - **MDD3A with linorobot2's firmware:** the inputs match, but linorobot2 doesn't name the board.

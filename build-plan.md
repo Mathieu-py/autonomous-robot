@@ -50,18 +50,18 @@ TurtleBot 4 and 3 are ruled out: the Create 3 base and the Dynamixel servos hide
 | Part | Selection | Approx. CAD | Notes |
 | --- | --- | --- | --- |
 | Compute | Raspberry Pi 5 (4 GB), active cooler, 32 GB microSD, micro-HDMI cable | 198 | Runs Ubuntu 24.04 and Jazzy; the 8 GB costs $90 more after 2026's price rises |
-| Chassis and motors | 2× JGB37-520 12 V encoder gear motors with wheels, ball caster, 3D-printed deck, standoffs, bumper microswitches | 94 | 2464 counts per wheel turn; poor encoders and wheel slip spoil every localization measurement |
+| Chassis and motors | 2× JGB37-520 12 V encoder gear motors with wheels, ball caster, 3D-printed deck, standoffs, bumper microswitches | 94 | About 2473 counts per wheel turn, measured; poor encoders and wheel slip spoil every localization measurement |
 | LiDAR | RPLIDAR C1 | 94 | Time-of-flight, 12 m; supported by linorobot2 |
 | Battery and power | 2× 3S 2200 mAh LiPo, 5 V 5 A converter, fuse, physical motor cutoff | 111 | |
 | Microcontroller, driver, IMU | Pico 2 W and its USB cable; Cytron MDD3A (3 A continuous, 5 A peak); MPU-6050 | 50 | All supported by linorobot2's firmware |
 | Charging and safety | Balance charger, LiPo bag, low-voltage alarm | 52 | |
 | Wiring and small parts | Perfboard, wire, 3.3 V regulators, resistors, capacitors | 47 | Estimate |
-| Tools you keep | Soldering iron kit, multimeter | 61 | Bench supply, oscilloscope and calipers borrowed from the DEN |
+| Tools you keep | Soldering iron kit, multimeter | 61 | Bench supply and calipers borrowed from the DEN |
 | **Total** | | **about 700** | Before tax and shipping |
 
 Prices were checked on 17 October 2026 and exclude tax and shipping. The overhead ground-truth camera is dropped from the budget: a phone looking down on the room, with printed AprilTags, does the same job.
 
-[parts-list.md](parts-list.md) turns this table into exact part numbers, with links, and checks that they fit together: motor voltage against the battery, the driver's current rating against the motors' stall current, encoder signal levels against the Pico's 3.3 V logic, and a 5 V, 5 A supply for the Pi 5. Three things still need a bench test before anything gets soldered: the motors' real stall current, whether the encoders run at 3.3 V, and the converter's output under load.
+[parts-list.md](parts-list.md) turns this table into exact part numbers, with links, and checks that they fit together: motor voltage against the battery, the driver's current rating against the motors' stall current, encoder signal levels against the Pico's 3.3 V logic, and a 5 V, 5 A supply for the Pi 5. The motors' stall current, the encoders at 3.3 V and the converter's output under load have all passed their bench tests; see [bench-tests.md](bench-tests.md).
 
 ## Computing setup
 
@@ -112,8 +112,8 @@ The first two weeks get the parts ordered and the simulation running.
 - [x] Run `glxinfo -B` and a Gazebo world with a GPU LiDAR; check the renderer and real-time factor
 - [x] Run the Nav2 TurtleBot simulation and send it a goal, to see a full stack working
 - [x] Create the repo and a ROS 2 workspace
-- [ ] Clone this repo into `~/robot_ws/src` and work from that copy
-- [ ] Run the [bench tests](parts-list.md#bench-tests) before soldering anything; most Amazon return windows close around 17–19 November 2026
+- [x] Clone this repo into `~/robot_ws/src` and work from that copy
+- [x] Run the [bench tests](bench-tests.md) before soldering anything (tests 1–5 passed by 6 November 2026; test 7 can be done any time, and test 6 needs the firmware)
 - [ ] Write A* in C++ on a saved map, with unit tests
 - [ ] Write the pure-pursuit follower and drive the simulated robot along your own paths
 
