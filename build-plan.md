@@ -1,6 +1,6 @@
 # Autonomous Mobile Robot — Build Plan
 
-Build a small differential-drive robot and write its software layer by layer, until it maps a room by itself and drives to any point clicked on the map. The parts were ordered on 17 October 2026 and have arrived; the planner and path follower get written in simulation while the robot is built. Parts and your own basic tools cost about CAD $700 before tax; [parts-list.md](parts-list.md) has the exact parts and links.
+Build a small differential-drive robot and write its software layer by layer, until it maps a room by itself and drives to any point clicked on the map. The parts were ordered on 17 October 2026 and have arrived; the planner and path follower get written in simulation while the robot is built. Parts and your own basic tools cost about CAD $770 before tax; [parts-list.md](parts-list.md) has the exact parts and links.
 
 ## Final demo
 
@@ -55,9 +55,9 @@ TurtleBot 4 and 3 are ruled out: the Create 3 base and the Dynamixel servos hide
 | Battery and power | 2× 3S 2200 mAh LiPo, 5 V 5 A converter, fuse, physical motor cutoff | 111 | |
 | Microcontroller, driver, IMU | Pico 2 W and its USB cable; Cytron MDD3A (3 A continuous, 5 A peak); MPU-6050 | 50 | All supported by linorobot2's firmware |
 | Charging and safety | Balance charger, LiPo bag, low-voltage alarm | 52 | |
-| Wiring and small parts | Perfboard, wire, 3.3 V regulators, resistors, capacitors | 47 | Estimate |
+| Wiring and small parts | Perfboard, wire, 3.3 V regulators, resistors, capacitors, screw terminals | 112 | Actual; the original estimate was 47 |
 | Tools you keep | Soldering iron kit, multimeter | 61 | Bench supply and calipers borrowed from the DEN |
-| **Total** | | **about 700** | Before tax and shipping |
+| **Total** | | **about 770** | Before tax and shipping |
 
 Prices were checked on 17 October 2026 and exclude tax and shipping. The overhead ground-truth camera is dropped from the budget: a phone looking down on the room, with printed AprilTags, does the same job.
 
@@ -113,7 +113,7 @@ The first two weeks get the parts ordered and the simulation running.
 - [x] Run the Nav2 TurtleBot simulation and send it a goal, to see a full stack working
 - [x] Create the repo and a ROS 2 workspace
 - [x] Clone this repo into `~/robot_ws/src` and work from that copy
-- [x] Run the [bench tests](bench-tests.md) before soldering anything (tests 1–5 passed by 6 November 2026; test 7 can be done any time, and test 6 needs the firmware)
+- [x] Run the [bench tests](bench-tests.md) before soldering anything (all passed by 6 November 2026, except test 6, which needs the firmware)
 - [ ] Write A* in C++ on a saved map, with unit tests
 - [ ] Write the pure-pursuit follower and drive the simulated robot along your own paths
 

@@ -13,17 +13,17 @@ Step-by-step checks for each part, with the results recorded as they are run. Te
 | [4. Spin and stall current](#4-spin-and-stall-current) | Pass, both motors | 2026-11-06 | Stall about 2.4–3.2 A; free spin about 0.15 A, slightly above expected |
 | [5. Odometry constants](#5-odometry-constants) | Pass, both motors | 2026-11-06 | About 68 mm wheels; about 2473 ticks per turn |
 | [6. Bumper and low-battery cutoff](#6-bumper-and-low-battery-cutoff) | Blocked: needs the firmware | | |
-| [7. MPU-6050](#7-mpu-6050) | Not run | | |
+| [7. MPU-6050](#7-mpu-6050) | Pass | 2026-11-06 | Found at `0x68`; Z about 15,470 flat, needs calibrating |
 
 ## What's left
 
-- **Test 7:** can be done at any time.
 - **Test 6:** once the firmware runs. Keep the DEN's bench supply until then.
 
 ## Results to carry forward
 
 - **Encoders:** they run at 3.3 V, so no 5 V divider is needed. Keep the Pico's internal pull-ups on, as the test script does.
 - **Odometry starting values:** wheel diameter about 68 mm, about 2473 ticks per wheel turn.
+- **IMU calibration:** lying flat, the MPU-6050 read about X 1250, Y 150 and Z 15,470, so calibrate its offsets before using it in the EKF.
 - **Stall protection:** the estimated stall current of about 2.4–3.2 A can exceed the MDD3A's 3 A continuous rating, so the firmware must not leave a motor stalled.
 
 ## Batteries
@@ -232,10 +232,31 @@ Not run.
 
 1. Solder the header pins.
 2. Wire VIN to the Pico's 3V3(OUT), GND to GND, SDA to GP4 and SCL to GP5.
-3. Run an I2C scan, then read the Z acceleration with the board lying flat.
+3. Run an I2C scan, then read the acceleration with the board lying flat and its printed side up, using this script in Thonny:
 
-**Pass:** the scan finds address `0x68`, and Z reads about 16384 (1 g).
+   ```python
+   from machine import I2C, Pin
+   import time
+
+   i2c = I2C(0, sda=Pin(4), scl=Pin(5), freq=400000)
+   print("Found:", [hex(d) for d in i2c.scan()])
+
+   ADDRESS = 0x68
+   i2c.writeto_mem(ADDRESS, 0x6B, b"\x00")
+   time.sleep(0.1)
+
+   def signed(high, low):
+       value = (high << 8) | low
+       return value - 65536 if value >= 32768 else value
+
+   while True:
+       d = i2c.readfrom_mem(ADDRESS, 0x3B, 6)
+       print("X:", signed(d[0], d[1]), " Y:", signed(d[2], d[3]), " Z:", signed(d[4], d[5]))
+       time.sleep(0.5)
+   ```
+
+**Pass:** the scan finds address `0x68`, and Z reads about 16384 (1 g), with X and Y much smaller. Some offset is normal.
 
 ### Results
 
-Not run.
+- **2026-11-06:** Pass, with the Adafruit board's own pull-ups only. Found at `0x68`. Lying flat, it read about X 1250, Y 150 and Z 15,470, so about 0.94 g on Z. Not yet calibrated.

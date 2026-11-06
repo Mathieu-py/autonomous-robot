@@ -1,13 +1,13 @@
 # Parts List — Budget Build
 
-The robot's parts cost about CAD $645, and your own soldering iron and multimeter add about $61, for **about CAD $706 before tax and shipping**. The parts alone are down from the build plan's original estimate of about $930. Raspberry Pi prices rose roughly 40% during 2026, so the Pi 5 4GB alone is now $155. The parts are the cheapest set that still meets two conditions:
+The robot's parts cost about CAD $710, and your own soldering iron and multimeter add about $61, for **about CAD $771 before tax and shipping**. The parts alone are down from the build plan's original estimate of about $930. Raspberry Pi prices rose roughly 40% during 2026, so the Pi 5 4GB alone is now $155. The parts are the cheapest set that still meets two conditions:
 
 - linorobot2's firmware supports every part, so it remains the fallback.
 - The encoders and IMU are good enough for the odometry and EKF in milestone 2.
 
 Prices and stock were checked on 17 October 2026. The parts were ordered that day and have arrived (see [Order status](#order-status)). [Bench tests](bench-tests.md) 1–5 passed by 6 November.
 
-Every part that goes on the robot is bought, not borrowed, so the robot can stay assembled. You also buy the two tools you'll use every week, a soldering iron and a multimeter. Only the bench power supply, oscilloscope and calipers are borrowed from the [DEN](https://den.uwaterloo.ca/inventory/search), for a few one-off tests. Your SYDE 192L kit already covers the breadboard, jumper wires, wire cutters, buttons and LEDs.
+Every part that goes on the robot is bought, not borrowed, so the robot can stay assembled. You also buy the two tools you'll use every week, a soldering iron and a multimeter. Only the bench power supply, its leads and the calipers are borrowed from the [DEN](https://den.uwaterloo.ca/inventory/search), for a few one-off tests. Your SYDE 192L kit already covers the breadboard, jumper wires, wire cutters, buttons and LEDs.
 
 ## Shopping list
 
@@ -67,14 +67,27 @@ For the motors, the RPM option is the only choice on the listing, and 178 RPM is
 
 The LiPo bag's price depends on the seller: $15.50 was the cheapest offer on 17 October, and another seller charges $17.99 for the same bags.
 
-### Anywhere (estimates)
-
-Check the DEN's free items and RidgidWare (PSE 1419) before buying these. Free DEN items are yours to keep.
+### Deck (estimate)
 
 | Part | Approx. price | Used for |
 | --- | --- | --- |
 | Deck: 3D-printed plate, or 1/4" plywood | 10 | Chassis. Also print the motor, LiDAR and caster mounts, and a spacer to level the caster. |
-| Wiring and small parts:<br>• perfboard<br>• 16–18 AWG silicone wire<br>• resistor assortment<br>• electrolytic capacitor assortment (220–470 µF)<br>• AMS1117-3.3 regulator modules<br>• screw terminals<br>• heat shrink | 47 | The final wiring. A breadboard shakes loose on a moving robot, so use perfboard. The motor cables end in bare wire, so solder them or clamp them in screw terminals. |
+
+### Wiring and small parts: Amazon.ca
+
+The final wiring. A breadboard shakes loose on a moving robot, so use perfboard. The motor cables end in bare wire, so solder them or clamp them in screw terminals. The DEN had none of these, so they came from Amazon.ca in November 2026, at about $65 over the original $47 estimate. The soldering kit covers the heat shrink.
+
+| Part | Price | Link | Used for |
+| --- | --- | --- | --- |
+| BNTECHGO 18 AWG silicone wire, 10 ft each red and black | 13.44 | [B01AQOI36M](https://www.amazon.ca/dp/B01AQOI36M) | Battery, fuse, switch, converter and MDD3A power |
+| Fermerry 22 AWG silicone wire, 6 colours, 10 ft each | 20.49 | [B089CQHRDT](https://www.amazon.ca/dp/B089CQHRDT) | PWM, I2C, bumpers and battery sensing |
+| ELEGOO double-sided perfboard kit, 32 boards | 17.99 | [B072Z7Y19F](https://www.amazon.ca/dp/B072Z7Y19F) | Final wiring; includes 7 × 9 cm boards |
+| Aniann 1/4 W 1% resistor kit, 130 values | 21.99 | [B07L83JC2J](https://www.amazon.ca/dp/B07L83JC2J) | Battery divider and I2C pull-ups. Check it includes 2 kΩ, 10 kΩ and 33 kΩ. |
+| HX 470 µF 25 V capacitors, 5-pack | 14.99 | [B07HDG93HZ](https://www.amazon.ca/dp/B07HDG93HZ) | Motor and logic supply lines |
+| Geekstory AMS1117-3.3 modules, 10-pack | 11.13 | [B07NY8PN84](https://www.amazon.ca/dp/B07NY8PN84) | Encoder power |
+| tooloflife 2-pin 5.08 mm screw terminals, 20-pack | 11.71 | [B0CP48D44S](https://www.amazon.ca/dp/B0CP48D44S) | Motor and power connections |
+
+A battery strap isn't bought yet: buy one or two when the robot is assembled.
 
 ## Budget
 
@@ -86,12 +99,12 @@ Check the DEN's free items and RidgidWare (PSE 1419) before buying these. Free D
 | Microcontroller, driver, IMU, Pico USB cable | 49.56 |
 | Battery and power: batteries, converter, fuse holders, fuses, switch, connectors | 111.03 |
 | Chassis and bumper: casters, standoffs, deck, microswitches | 54.88 |
-| Wiring and small parts | 47.00 |
+| Wiring and small parts | 111.74 |
 | Charging and safety: charger, LiPo bags, alarms | 52.45 |
 | Tools you keep: soldering iron kit, multimeter | 60.59 |
-| **Total before tax and shipping** | **705.96** |
+| **Total before tax and shipping** | **770.70** |
 
-About $57 of that is estimates: the deck and the small parts. Shipping, import fees and sales tax aren't included.
+About $10 of that is an estimate: the deck. Shipping, import fees and sales tax aren't included.
 
 ## Order status
 
@@ -101,7 +114,7 @@ Everything except the small parts was ordered on 17 October 2026. The MDD3A arri
 - [x] **CanaKit:** Pi 5 and cooler, $161.90.
 - [x] **PiShop:** Pico 2 WH, MPU-6050, microSD card, micro-HDMI cable and micro-USB cable, $69.65.
 - [x] **MDD3A:** from RobotShop or DigiKey.
-- [ ] **Small parts:** check the DEN's free items and RidgidWare, then buy whatever is left.
+- [x] **Small parts:** Amazon.ca, $111.74 before tax, ordered in November 2026; arrival not yet recorded.
 - [x] **Borrow tools from the [DEN](https://den.uwaterloo.ca/inventory/search)** (free for SYDE and BME undergrads; book a pickup with Chris McClellan, E7-6414):
   - digital caliper
   - bench power supply (0–30 V, 3 A), for bench tests 1, 4 and 6. The 2231A-30-3's fine if not returned is $1,000.
@@ -166,7 +179,7 @@ The steps and results are in [bench-tests.md](bench-tests.md). Tests 1–5 have 
 - **XT60 connectors:** the listing says Amass, but the brand field doesn't, so they may not be genuine.
 - **RobotShop's MDD3A price:** search snippet only. Their site blocked direct reads.
 - **MDD3A with linorobot2's firmware:** the inputs match, but linorobot2 doesn't name the board.
-- **Estimates:** the deck and the small parts.
+- **Estimates:** the deck.
 
 ## Avoid
 
