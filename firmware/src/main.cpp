@@ -91,9 +91,9 @@ int main() {
     // Test only: start the countdown once a serial viewer is connected.
     if (is_at_the_end_of_time(test_start_time) && stdio_usb_connected()) {
       test_start_time = make_timeout_time_ms(kTestStartDelayMs);
-      printf("Serial connected: %s starts in 3 s\n",
-             kTestMode == TestMode::kSysId ? "identification test"
-                                           : "speed test");
+      printf(
+          "Serial connected: %s starts in 3 s\n",
+          kTestMode == TestMode::kSysId ? "identification test" : "speed test");
     }
 
     if (!is_test_started && time_reached(test_start_time)) {
@@ -104,8 +104,9 @@ int main() {
         printf("t_ms,phase,power,first_speed,second_speed\n");
       } else {
         speed_test.start(now);
-        printf("t_ms,setpoint,first_speed,first_power,second_speed,"
-               "second_power\n");
+        printf(
+            "t_ms,setpoint,first_speed,first_power,second_speed,"
+            "second_power\n");
       }
     }
 
@@ -163,8 +164,7 @@ int main() {
           delayed_by_ms(next_status_print, kStatusPrintIntervalMs);
       if (!is_test_started || is_test_finished) {
         printf("first: %8ld (%5.2f rev/s)  second: %8ld (%5.2f rev/s)\n",
-               static_cast<long>(first_wheel.count()),
-               first_wheel.speed_rps(),
+               static_cast<long>(first_wheel.count()), first_wheel.speed_rps(),
                static_cast<long>(second_wheel.count()),
                second_wheel.speed_rps());
       }

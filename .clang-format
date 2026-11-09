@@ -1,0 +1,2 @@
+# Google C++ style; run: clang-format -i firmware/src/*.h firmware/src/*.cpp
+BasedOnStyle: Google

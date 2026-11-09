@@ -1,2 +1,23 @@
-.playwright-mcp/
+# Build output
 firmware/build/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# clangd index and compile database
+.cache/
+compile_commands.json
+
+# Raw serial logs; results/ keeps the CSVs extracted from them
+*.log
+
+# Editors and OS
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Tool output
+.playwright-mcp/
