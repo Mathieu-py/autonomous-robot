@@ -1,5 +1,5 @@
 // Pins: encoders on GP2/GP3 and GP6/GP7, MPU-6050 I2C on GP4/GP5,
-// first motor's MDD3A inputs on GP10/GP11.
+// MDD3A inputs: first motor on GP10/GP11, second on GP12/GP13.
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +24,10 @@ constexpr uint32_t kPrintIntervalMs = 200;
 constexpr uint32_t kLedIntervalMs = 500;
 
 constexpr uint kFirstMotorPinA = 10;
+constexpr uint kSecondMotorPinA = 12;
+
+constexpr float kTicksPerRev = 2473.0f;
+constexpr uint32_t kSpeedPeriodMs = 20;
 
 // 7500 steps at 150 MHz = 20 kHz PWM.
 constexpr uint16_t kPwmWrap = 7499;
@@ -83,12 +87,31 @@ void set_motor_speed(uint slice, float speed) {
   }
 }
 
+struct WheelSpeed {
+  int32_t last_count = 0;
+  absolute_time_t last_time;
+  float rev_per_s = 0.0f;
+};
+
+void update_speed(WheelSpeed& wheel, int32_t count, absolute_time_t now) {
+  const int32_t ticks = count - wheel.last_count;
+  const float seconds = absolute_time_diff_us(wheel.last_time, now) / 1e6f;
+
+  if (seconds > 0.0f) {  // guards against dividing by zero
+    wheel.rev_per_s = ticks / seconds / kTicksPerRev;
+  }
+
+  wheel.last_count = count;
+  wheel.last_time = now;
+}
+
 }  // namespace
 
 int main() {
   stdio_init_all();
 
   const uint first_motor = setup_motor(kFirstMotorPinA);
+  const uint second_motor = setup_motor(kSecondMotorPinA);
 
   // Before the encoders: the wireless chip (LED) also claims a PIO state machine.
   if (cyw43_arch_init() != 0) {
@@ -120,6 +143,20 @@ int main() {
   bool led_on = false;
   absolute_time_t next_print = get_absolute_time();
   absolute_time_t next_led = get_absolute_time();
+  absolute_time_t next_speed = get_absolute_time();
+
+  // Start from the current counts so the first reading isn't a jump.
+  WheelSpeed first_wheel;
+  WheelSpeed second_wheel;
+  first_wheel.last_count = quadrature_encoder_get_count(encoder_pio, first_sm);
+  second_wheel.last_count =
+      quadrature_encoder_get_count(encoder_pio, second_sm);
+  first_wheel.last_time = second_wheel.last_time = get_absolute_time();
+
+  const auto set_both_motors = [&](float speed) {
+    set_motor_speed(first_motor, speed);
+    set_motor_speed(second_motor, speed);
+  };
 
   TestStep step = TestStep::kWaiting;
   absolute_time_t next_step = at_the_end_of_time;
@@ -136,40 +173,47 @@ int main() {
     if (step != TestStep::kDone && time_reached(next_step)) {
       switch (step) {
         case TestStep::kWaiting:
-          set_motor_speed(first_motor, kTestSpeed);
+          set_both_motors(kTestSpeed);
           step = TestStep::kForward;
           next_step = make_timeout_time_ms(kRunMs);
           printf("Forward\n");
           break;
         case TestStep::kForward:
-          set_motor_speed(first_motor, 0.0f);
+          set_both_motors(0.0f);
           step = TestStep::kPause;
           next_step = make_timeout_time_ms(kPauseMs);
           printf("Stop\n");
           break;
         case TestStep::kPause:
-          set_motor_speed(first_motor, -kTestSpeed);
+          set_both_motors(-kTestSpeed);
           step = TestStep::kBackward;
           next_step = make_timeout_time_ms(kRunMs);
           printf("Backward\n");
           break;
         case TestStep::kBackward:
         case TestStep::kDone:
-          set_motor_speed(first_motor, 0.0f);
+          set_both_motors(0.0f);
           step = TestStep::kDone;
           printf("Done\n");
           break;
       }
     }
 
+    if (time_reached(next_speed)) {
+      next_speed = delayed_by_ms(next_speed, kSpeedPeriodMs);
+      const absolute_time_t now = get_absolute_time();
+      update_speed(first_wheel,
+                   quadrature_encoder_get_count(encoder_pio, first_sm), now);
+      update_speed(second_wheel,
+                   quadrature_encoder_get_count(encoder_pio, second_sm), now);
+    }
+
     if (time_reached(next_print)) {
       next_print = delayed_by_ms(next_print, kPrintIntervalMs);
-      const int32_t first =
-          quadrature_encoder_get_count(encoder_pio, first_sm);
-      const int32_t second =
-          quadrature_encoder_get_count(encoder_pio, second_sm);
-      printf("first: %8ld  second: %8ld\n", static_cast<long>(first),
-             static_cast<long>(second));
+      printf("first: %8ld (%5.2f rev/s)  second: %8ld (%5.2f rev/s)\n",
+             static_cast<long>(first_wheel.last_count), first_wheel.rev_per_s,
+             static_cast<long>(second_wheel.last_count),
+             second_wheel.rev_per_s);
     }
 
     if (time_reached(next_led)) {
