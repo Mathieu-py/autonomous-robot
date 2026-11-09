@@ -1,0 +1,23 @@
+Fit of sysid/2026-11-09-run01-no-load-both-motors.csv
+
+First motor
+  kS = 0.0119 power      (static friction)
+  kV = 0.3451 power per rev/s   (ramp fit RMS error 0.0051)
+  kA = 0.0174 power per rev/s²  (tau 50 ms, dead time 11 ms)
+  step 2: power +0.50, tau 51 ms, dead time 11 ms, steady +1.454 rev/s (model predicts +1.414)
+  step 6: power -0.50, tau 50 ms, dead time 11 ms, steady -1.413 rev/s (model predicts -1.414)
+  PI gains (IMC), loop delay 21 ms:
+    tight, lambda = delay          kP = 0.415, kI = 8.22
+    moderate, lambda = 2 x delay   kP = 0.277, kI = 5.48
+    gentle, lambda = 4 x delay     kP = 0.166, kI = 3.29
+
+Second motor
+  kS = 0.0101 power      (static friction)
+  kV = 0.3493 power per rev/s   (ramp fit RMS error 0.0045)
+  kA = 0.0171 power per rev/s²  (tau 49 ms, dead time 11 ms)
+  step 2: power +0.50, tau 51 ms, dead time 10 ms, steady +1.431 rev/s (model predicts +1.403)
+  step 6: power -0.50, tau 47 ms, dead time 12 ms, steady -1.424 rev/s (model predicts -1.403)
+  PI gains (IMC), loop delay 21 ms:
+    tight, lambda = delay          kP = 0.407, kI = 8.32
+    moderate, lambda = 2 x delay   kP = 0.272, kI = 5.54
+    gentle, lambda = 4 x delay     kP = 0.163, kI = 3.33

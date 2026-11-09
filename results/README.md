@@ -1,0 +1,60 @@
+# Results
+
+Test data, logs and charts from the robot. Bench-test procedures and pass/fail results are in [docs/bench-tests.md](../docs/bench-tests.md); this folder holds the raw data behind firmware tests.
+
+## Naming
+
+`YYYY-MM-DD-runNN-<load>-<speed>-<what changed>`, with the CSV and its chart sharing a name. Run numbers count up within each folder and are zero-padded so they sort in order. `<load>` is `no-load` (wheels lifted) or `fingers-on` (light finger pressure on both wheels); `<speed>` is the test target in revolutions per second; `<what changed>` names the change since the previous run.
+
+CSVs are kept exactly as the firmware logged them, header included.
+
+## PID speed loop ([pid/](pid/))
+
+Logged at 50 Hz by [firmware/src/main.cpp](../firmware/src/main.cpp). Columns: `t_ms` (since the test started), `target` (rev/s, see below), then each wheel's measured speed (rev/s, the average over the last 20 ms) and motor power (PWM fraction, -0.95 to +0.95). Plot with:
+
+```bash
+python3 tools/plot_pid.py <input.csv> <output.png> "<title>"
+```
+
+Every run: 12 V bench supply with a 1.5 A limit, and the test sequence target forward for 3 s, stop for 1 s, minus target for 3 s.
+
+**What `target` means changed between runs:**
+
+- Runs 01–03: the commanded target, which jumps in a single step.
+- Runs 04–06: the ramped setpoint for the end of the coming 20 ms. Each measured speed covers the previous 20 ms, so the two are about 30 ms apart, and during ramps the charts make the wheels look about 0.15 rev/s behind when they were really on the ramp or slightly ahead of it.
+- Runs 07–08: the ramped setpoint at the middle of the 20 ms the speed was measured over, so the two line up in time.
+
+From run 09 on, the firmware names this column `setpoint` instead of `target`; it means the same as in runs 07–08.
+
+| Run | Controller | Load, target | Result |
+| --- | --- | --- | --- |
+| [01](pid/2026-11-09-run01-no-load-0.5rps-first-gains.png) ([CSV](pid/2026-11-09-run01-no-load-0.5rps-first-gains.csv)) | Feedforward 0.35, kP 0.3, kI 1.5 | No load, 0.5 rev/s | Reached 0.5 rev/s in about 70 ms and settled in about 120 ms; one sample overshot to 0.566. Both wheels averaged 0.50. |
+| [02](pid/2026-11-09-run02-fingers-on-0.5rps-first-gains.png) ([CSV](pid/2026-11-09-run02-fingers-on-0.5rps-first-gains.csv)) | As run 01 | Fingers on, 0.5 rev/s | Both wheels still averaged 0.50. The second wheel needed about 0.22 power, against about 0.19 unloaded, and sat at 0.47–0.48 rev/s for about 0.5 s before the integral caught up: kI on the slow side. |
+| [03](pid/2026-11-09-run03-no-load-1.0rps-higher-ki.png) ([CSV](pid/2026-11-09-run03-no-load-1.0rps-higher-ki.csv)) | kI raised to 3.0 | No load, 1.0 rev/s | Steady speed exact (1.001 rev/s at 0.350–0.356 power), but it overshot to 1.19 (19%) and took about 600 ms to settle: the integral builds up during the sudden step and then unwinds slowly. |
+| [04](pid/2026-11-09-run04-no-load-1.0rps-ramp.png) ([CSV](pid/2026-11-09-run04-no-load-1.0rps-ramp.csv)) | Plus a 5 rev/s² ramp on the target | No load, 1.0 rev/s | Overshoot down from 19% to 11% (peak 1.11 in both directions); about 500 ms to settle. The chart's apparent lag behind the ramp is the logging offset described above. |
+| [05](pid/2026-11-09-run05-no-load-1.0rps-accel-feedforward.png) ([CSV](pid/2026-11-09-run05-no-load-1.0rps-accel-feedforward.csv)) | Plus acceleration feedforward, kA 0.025 (hand estimate) | No load, 1.0 rev/s | Settled in about 280 ms instead of 500, but the peak stayed at 1.11. At the time this was put down to kA; run 06 showed the real cause was timing. |
+| [06](pid/2026-11-09-run06-no-load-1.0rps-measured-gains.png) ([CSV](pid/2026-11-09-run06-no-load-1.0rps-measured-gains.csv)) | Measured per motor (see motor identification): kS 0.01, kV 0.35, kA 0.017, kP 0.28, kI 5.5 | No load, 1.0 rev/s | Same 1.11–1.13 peak, so kA was not the cause. The real cause was timing: the controller compared each speed reading, an average over the last 20 ms, with the setpoint for the end of the next 20 ms, so during ramps it pushed the wheels about 0.15 rev/s ahead. A simulation using the measured motor model reproduced this run (peak 1.119, settled about 260 ms). |
+| [07](pid/2026-11-09-run07-no-load-1.0rps-aligned-timing.png) ([CSV](pid/2026-11-09-run07-no-load-1.0rps-aligned-timing.csv)) | As run 06, with the timing aligned | No load, 1.0 rev/s | Peak 1.011 in both directions, one encoder step (0.02 rev/s) above the target, so no real overshoot. The wheels follow the ramp within 0.035 rev/s and are settled when it ends, about 230 ms after the command. Steady speed 1.000 on both wheels, matching the simulation. |
+| [08](pid/2026-11-09-run08-fingers-on-1.0rps-aligned-timing.png) ([CSV](pid/2026-11-09-run08-fingers-on-1.0rps-aligned-timing.csv)) | As run 07 | Fingers on, 1.0 rev/s | Held both wheels at 1.000 rev/s, the second taking about 0.38 power against 0.35 unloaded. Worst sample 3% slow and none beyond 4%, against run 02's worst of 7% with 3 samples beyond 4% (as a fraction of each run's target; finger pressure can't be matched exactly between runs). No visible dips. |
+| [09](pid/2026-11-09-run09-no-load-1.0rps-refactor-check.png) ([CSV](pid/2026-11-09-run09-no-load-1.0rps-refactor-check.csv)) | As run 07, after splitting the firmware into modules | No load, 1.0 rev/s | Same as run 07: peak 1.011 in both directions, steady 1.000 on both wheels at 0.349 power (0.347 in run 07), worst ramp tracking error 0.033 (0.035). The refactor didn't change the behaviour. |
+
+Runs 01 and 03 were copied from the serial output in the terminal; the rest are from PuTTY logs.
+
+## Motor identification ([sysid/](sysid/))
+
+Open-loop test from the firmware's identification mode (`kRunSysId = true`): slow power ramps to ±0.6 over 10 s, then steps to ±0.5 power, logged at 50 Hz with columns `t_ms`, `phase`, `power`, `first_speed`, `second_speed`. Fit with:
+
+```bash
+python3 tools/fit_motor.py <log.csv> <chart.png>
+```
+
+The script also saves its printed numbers next to the chart, as a `.txt` with the same name.
+
+The model is `power = kS * sign(v) + kV * v + kA * a`, as in WPILib SysId. kS and kV come from the slow ramps, and kA from the step response's time constant (kA = kV * tau). PI gains use IMC (lambda) tuning: kP = kA / (lambda + delay), kI = kV / (lambda + delay).
+
+| Run | Motor | kS (power) | kV (power per rev/s) | kA (power per rev/s²) | Time constant | Dead time | Gains used (lambda = 2 x delay) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| [01](sysid/2026-11-09-run01-no-load-both-motors.png) ([CSV](sysid/2026-11-09-run01-no-load-both-motors.csv), [numbers](sysid/2026-11-09-run01-no-load-both-motors.txt)) | First | 0.012 | 0.345 | 0.0174 | 50 ms | 11 ms | kP 0.277, kI 5.48 |
+| | Second | 0.010 | 0.349 | 0.0171 | 49 ms | 11 ms | kP 0.272, kI 5.54 |
+
+Wheels lifted, 12 V bench supply with a 1.5 A limit. The ramp fits have an RMS error of about 0.005 power. At 0.5 power the first wheel ran 2.9% faster forward than backward (1.454 against 1.413 rev/s); the second only 0.4% (1.432 against 1.425). The fit averages each wheel's two directions, and the integral term absorbs the rest. The 11 ms dead time is mostly the speed reading averaging over each 20 ms window. The hand estimate of kA used in run 05, 0.025, was about 45% too high.

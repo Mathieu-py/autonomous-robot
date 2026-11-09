@@ -18,3 +18,5 @@ As of 6 November 2026:
 - [build-plan.md](docs/build-plan.md): the final demo, milestones, schedule, computing setup, safety and risks
 - [parts-list.md](docs/parts-list.md): exact parts and prices, compatibility checks and wiring
 - [bench-tests.md](docs/bench-tests.md): step-by-step checks for each part, with results
+- [results/](results/README.md): test data, logs and charts, such as PID step responses
+- [tools/](tools/): helper scripts, such as `plot_pid.py` for charting a PID log

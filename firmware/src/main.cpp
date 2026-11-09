@@ -1,47 +1,42 @@
 // Pins: encoders on GP2/GP3 and GP6/GP7, MPU-6050 I2C on GP4/GP5,
 // MDD3A inputs: first motor on GP10/GP11, second on GP12/GP13.
 
-#include <algorithm>
-#include <cmath>
 #include <cstdio>
 
-#include "hardware/pio.h"
-#include "hardware/pwm.h"
+#include "encoder.h"
+#include "motor.h"
 #include "pico/cyw43_arch.h"
 #include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
-#include "quadrature_encoder.pio.h"
+#include "speed_controller.h"
+#include "test_sequences.h"
+#include "wheel_speed.h"
 
 namespace {
 
-// Each encoder's B pin is A + 1.
 constexpr uint kFirstEncoderPinA = 2;
 constexpr uint kSecondEncoderPinA = 6;
-
-constexpr int kMaxStepRate = 0;  // 0 = sample at full speed
-
-constexpr uint32_t kPrintIntervalMs = 200;
-constexpr uint32_t kLedIntervalMs = 500;
-
 constexpr uint kFirstMotorPinA = 10;
 constexpr uint kSecondMotorPinA = 12;
 
 constexpr float kTicksPerRev = 2473.0f;
-constexpr uint32_t kSpeedPeriodMs = 20;
+constexpr uint32_t kControlPeriodMs = 20;
 
-// 7500 steps at 150 MHz = 20 kHz PWM.
-constexpr uint16_t kPwmWrap = 7499;
+// From results/sysid/2026-11-09-run01 (see results/README.md).
+constexpr MotorGains kFirstMotorGains = {
+    .k_s = 0.012f, .k_v = 0.345f, .k_a = 0.0174f, .k_p = 0.277f, .k_i = 5.48f};
+constexpr MotorGains kSecondMotorGains = {
+    .k_s = 0.010f, .k_v = 0.349f, .k_a = 0.0171f, .k_p = 0.272f, .k_i = 5.54f};
 
-// 12 V motors on a 12.6 V battery: 12 / 12.6.
-constexpr float kMaxSpeed = 0.95f;
+constexpr float kMaxAccel = 5.0f;  // rev/s², so 0 to 1.0 rev/s in 0.2 s
 
-// Motor test: runs once after power-up, then stays stopped.
-constexpr float kTestSpeed = 0.3f;
-constexpr uint32_t kStartDelayMs = 3000;
-constexpr uint32_t kRunMs = 2000;
-constexpr uint32_t kPauseMs = 1000;
+enum class TestMode { kSpeed, kSysId };
+constexpr TestMode kTestMode = TestMode::kSpeed;
+constexpr float kTestTargetRps = 1.0f;
+constexpr uint32_t kTestStartDelayMs = 3000;
 
-enum class TestStep { kWaiting, kForward, kPause, kBackward, kDone };
+constexpr uint32_t kStatusPrintIntervalMs = 200;
+constexpr uint32_t kLedIntervalMs = 500;
 
 [[noreturn]] void halt(const char* reason) {
   while (true) {
@@ -50,176 +45,135 @@ enum class TestStep { kWaiting, kForward, kPause, kBackward, kDone };
   }
 }
 
-// pin_a must be even, so pin_a and pin_a + 1 share a PWM slice.
-uint setup_motor(uint pin_a) {
-  gpio_set_function(pin_a, GPIO_FUNC_PWM);
-  gpio_set_function(pin_a + 1, GPIO_FUNC_PWM);
-
-  const uint slice = pwm_gpio_to_slice_num(pin_a);
-
-  pwm_set_clkdiv(slice, 1.0f);
-  pwm_set_wrap(slice, kPwmWrap);
-
-  pwm_set_chan_level(slice, PWM_CHAN_A, 0);
-  pwm_set_chan_level(slice, PWM_CHAN_B, 0);
-
-  pwm_set_enabled(slice, true);
-
-  return slice;
-}
-
-// speed: -1.0 (full backward) to +1.0 (full forward).
-void set_motor_speed(uint slice, float speed) {
-  if (std::isnan(speed)) {
-    speed = 0.0f;
-  }
-
-  speed = std::clamp(speed, -kMaxSpeed, kMaxSpeed);
-
-  const auto level =
-      static_cast<uint16_t>(std::fabs(speed) * (kPwmWrap + 1) + 0.5f);
-
-  // Set both at once so A and B are never on together. Zero brakes.
-  if (speed > 0.0f) {
-    pwm_set_both_levels(slice, level, 0);
-  } else {
-    pwm_set_both_levels(slice, 0, level);
-  }
-}
-
-struct WheelSpeed {
-  int32_t last_count = 0;
-  absolute_time_t last_time;
-  float rev_per_s = 0.0f;
-};
-
-void update_speed(WheelSpeed& wheel, int32_t count, absolute_time_t now) {
-  const int32_t ticks = count - wheel.last_count;
-  const float seconds = absolute_time_diff_us(wheel.last_time, now) / 1e6f;
-
-  if (seconds > 0.0f) {  // guards against dividing by zero
-    wheel.rev_per_s = ticks / seconds / kTicksPerRev;
-  }
-
-  wheel.last_count = count;
-  wheel.last_time = now;
-}
-
 }  // namespace
 
 int main() {
   stdio_init_all();
 
-  const uint first_motor = setup_motor(kFirstMotorPinA);
-  const uint second_motor = setup_motor(kSecondMotorPinA);
+  // First, so the motor pins are held low (stopped) during startup.
+  const Motor first_motor(kFirstMotorPinA);
+  const Motor second_motor(kSecondMotorPinA);
 
-  // Before the encoders: the wireless chip (LED) also claims a PIO state machine.
+  // Before the encoders: the wireless chip (LED) also claims a PIO state
+  // machine.
   if (cyw43_arch_init() != 0) {
     halt("failed to start the wireless chip, which drives the LED");
   }
 
-  PIO encoder_pio;
-  uint first_sm;
-  uint program_offset;
-  if (!pio_claim_free_sm_and_add_program_for_gpio_range(
-          &quadrature_encoder_program, &encoder_pio, &first_sm,
-          &program_offset, kFirstEncoderPinA, 2, true)) {
-    halt("no free PIO state machine for the first encoder");
+  Encoder first_encoder;
+  Encoder second_encoder;
+  if (const char* error =
+          Encoder::start_pair(kFirstEncoderPinA, kSecondEncoderPinA,
+                              first_encoder, second_encoder)) {
+    halt(error);
   }
 
-  const int second_sm = pio_claim_unused_sm(encoder_pio, false);
-  if (second_sm < 0) {
-    halt("no free PIO state machine for the second encoder");
-  }
+  const absolute_time_t boot_time = get_absolute_time();
+  WheelSpeed first_wheel(kTicksPerRev, first_encoder.count(), boot_time);
+  WheelSpeed second_wheel(kTicksPerRev, second_encoder.count(), boot_time);
 
-  quadrature_encoder_program_init(encoder_pio, first_sm, kFirstEncoderPinA,
-                                  kMaxStepRate);
-  quadrature_encoder_program_init(encoder_pio, second_sm, kSecondEncoderPinA,
-                                  kMaxStepRate);
+  SetpointRamp ramp(kMaxAccel);
+  SpeedController first_controller(kFirstMotorGains, Motor::kMaxPower);
+  SpeedController second_controller(kSecondMotorGains, Motor::kMaxPower);
 
-  printf("Encoders started on PIO %u, state machines %u and %d\n",
-         pio_get_index(encoder_pio), first_sm, second_sm);
+  SpeedTest speed_test(kTestTargetRps);
+  SysIdTest sys_id_test;
+  absolute_time_t test_start_time = at_the_end_of_time;  // set on connect
+  bool is_test_started = false;
+  bool is_test_finished = false;
 
-  bool led_on = false;
-  absolute_time_t next_print = get_absolute_time();
-  absolute_time_t next_led = get_absolute_time();
-  absolute_time_t next_speed = get_absolute_time();
-
-  // Start from the current counts so the first reading isn't a jump.
-  WheelSpeed first_wheel;
-  WheelSpeed second_wheel;
-  first_wheel.last_count = quadrature_encoder_get_count(encoder_pio, first_sm);
-  second_wheel.last_count =
-      quadrature_encoder_get_count(encoder_pio, second_sm);
-  first_wheel.last_time = second_wheel.last_time = get_absolute_time();
-
-  const auto set_both_motors = [&](float speed) {
-    set_motor_speed(first_motor, speed);
-    set_motor_speed(second_motor, speed);
-  };
-
-  TestStep step = TestStep::kWaiting;
-  absolute_time_t next_step = at_the_end_of_time;
-  bool countdown_started = false;
+  bool is_led_on = false;
+  absolute_time_t next_status_print = boot_time;
+  absolute_time_t next_led_toggle = boot_time;
+  absolute_time_t next_control = boot_time;
 
   while (true) {
     // Test only: start the countdown once a serial viewer is connected.
-    if (!countdown_started && stdio_usb_connected()) {
-      countdown_started = true;
-      next_step = make_timeout_time_ms(kStartDelayMs);
-      printf("Serial connected: motor test starts in 3 s\n");
+    if (is_at_the_end_of_time(test_start_time) && stdio_usb_connected()) {
+      test_start_time = make_timeout_time_ms(kTestStartDelayMs);
+      printf("Serial connected: %s starts in 3 s\n",
+             kTestMode == TestMode::kSysId ? "identification test"
+                                           : "speed test");
     }
 
-    if (step != TestStep::kDone && time_reached(next_step)) {
-      switch (step) {
-        case TestStep::kWaiting:
-          set_both_motors(kTestSpeed);
-          step = TestStep::kForward;
-          next_step = make_timeout_time_ms(kRunMs);
-          printf("Forward\n");
-          break;
-        case TestStep::kForward:
-          set_both_motors(0.0f);
-          step = TestStep::kPause;
-          next_step = make_timeout_time_ms(kPauseMs);
-          printf("Stop\n");
-          break;
-        case TestStep::kPause:
-          set_both_motors(-kTestSpeed);
-          step = TestStep::kBackward;
-          next_step = make_timeout_time_ms(kRunMs);
-          printf("Backward\n");
-          break;
-        case TestStep::kBackward:
-        case TestStep::kDone:
-          set_both_motors(0.0f);
-          step = TestStep::kDone;
-          printf("Done\n");
-          break;
+    if (!is_test_started && time_reached(test_start_time)) {
+      is_test_started = true;
+      const absolute_time_t now = get_absolute_time();
+      if (kTestMode == TestMode::kSysId) {
+        sys_id_test.start(now);
+        printf("t_ms,phase,power,first_speed,second_speed\n");
+      } else {
+        speed_test.start(now);
+        printf("t_ms,setpoint,first_speed,first_power,second_speed,"
+               "second_power\n");
       }
     }
 
-    if (time_reached(next_speed)) {
-      next_speed = delayed_by_ms(next_speed, kSpeedPeriodMs);
+    if (time_reached(next_control)) {
+      next_control = delayed_by_ms(next_control, kControlPeriodMs);
+      if (time_reached(next_control)) {
+        // Fell behind: skip ahead, since back-to-back updates with tiny
+        // gaps would make the speed readings jumpy.
+        next_control = make_timeout_time_ms(kControlPeriodMs);
+      }
+
       const absolute_time_t now = get_absolute_time();
-      update_speed(first_wheel,
-                   quadrature_encoder_get_count(encoder_pio, first_sm), now);
-      update_speed(second_wheel,
-                   quadrature_encoder_get_count(encoder_pio, second_sm), now);
+      first_wheel.update(first_encoder.count(), now);
+      second_wheel.update(second_encoder.count(), now);
+      const float period_seconds = first_wheel.last_period_seconds();
+      const int64_t test_time_ms =
+          absolute_time_diff_us(test_start_time, now) / 1000;
+
+      bool is_test_running = false;
+      if (kTestMode == TestMode::kSysId) {
+        is_test_running = sys_id_test.is_running(now);
+        const float power = sys_id_test.power(now);
+        first_motor.set_power(power);
+        second_motor.set_power(power);
+        if (is_test_running) {
+          printf("%lld,%u,%.4f,%.3f,%.3f\n", test_time_ms,
+                 static_cast<unsigned>(sys_id_test.phase(now)), power,
+                 first_wheel.speed_rps(), second_wheel.speed_rps());
+        }
+      } else {
+        is_test_running = speed_test.is_running(now);
+        const RampedSetpoint setpoint =
+            ramp.advance(speed_test.target_rps(now), period_seconds);
+        const float first_power = first_controller.power_for_next_period(
+            setpoint, first_wheel.speed_rps(), period_seconds);
+        const float second_power = second_controller.power_for_next_period(
+            setpoint, second_wheel.speed_rps(), period_seconds);
+        first_motor.set_power(first_power);
+        second_motor.set_power(second_power);
+        if (is_test_running) {
+          printf("%lld,%.3f,%.3f,%.3f,%.3f,%.3f\n", test_time_ms,
+                 setpoint.at_last_reading, first_wheel.speed_rps(), first_power,
+                 second_wheel.speed_rps(), second_power);
+        }
+      }
+
+      if (is_test_started && !is_test_running && !is_test_finished) {
+        is_test_finished = true;
+        printf("Done\n");
+      }
     }
 
-    if (time_reached(next_print)) {
-      next_print = delayed_by_ms(next_print, kPrintIntervalMs);
-      printf("first: %8ld (%5.2f rev/s)  second: %8ld (%5.2f rev/s)\n",
-             static_cast<long>(first_wheel.last_count), first_wheel.rev_per_s,
-             static_cast<long>(second_wheel.last_count),
-             second_wheel.rev_per_s);
+    if (time_reached(next_status_print)) {
+      next_status_print =
+          delayed_by_ms(next_status_print, kStatusPrintIntervalMs);
+      if (!is_test_started || is_test_finished) {
+        printf("first: %8ld (%5.2f rev/s)  second: %8ld (%5.2f rev/s)\n",
+               static_cast<long>(first_wheel.count()),
+               first_wheel.speed_rps(),
+               static_cast<long>(second_wheel.count()),
+               second_wheel.speed_rps());
+      }
     }
 
-    if (time_reached(next_led)) {
-      next_led = delayed_by_ms(next_led, kLedIntervalMs);
-      led_on = !led_on;
-      cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_on);
+    if (time_reached(next_led_toggle)) {
+      next_led_toggle = delayed_by_ms(next_led_toggle, kLedIntervalMs);
+      is_led_on = !is_led_on;
+      cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, is_led_on);
     }
   }
 }
