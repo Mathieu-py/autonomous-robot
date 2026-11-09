@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 #include "pico/time.h"
 
@@ -18,6 +19,24 @@ class SpeedTest {
 
  private:
   float target_rps_;
+  bool started_ = false;
+  absolute_time_t start_time_ = nil_time;
+};
+
+// Safety test: runs 8 s then stops 2 s, repeating, so each stop's latch can
+// clear before the next check (bumper, battery, stall).
+class CyclingSpeedTest {
+ public:
+  CyclingSpeedTest(float target_rps, int64_t duration_ms)
+      : target_rps_(target_rps), duration_ms_(duration_ms) {}
+
+  void start(absolute_time_t now);
+  bool is_running(absolute_time_t now) const;
+  float target_rps(absolute_time_t now) const;  // 0 when not running
+
+ private:
+  float target_rps_;
+  int64_t duration_ms_;
   bool started_ = false;
   absolute_time_t start_time_ = nil_time;
 };

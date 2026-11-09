@@ -27,6 +27,9 @@ class SetpointRamp {
 
   RampedSetpoint advance(float target_rps, float period_seconds);
 
+  // For emergency stops: jumps straight to zero, bypassing the ramp.
+  void reset() { setpoint_rps_ = previous_setpoint_rps_ = 0.0f; }
+
  private:
   float max_accel_;
   float setpoint_rps_ = 0.0f;
@@ -42,6 +45,8 @@ class SpeedController {
   // Brakes, and forgets past error, once the setpoint is zero at both moments.
   float power_for_next_period(const RampedSetpoint& setpoint,
                               float measured_rps, float period_seconds);
+
+  void reset() { integral_ = 0.0f; }
 
  private:
   MotorGains gains_;

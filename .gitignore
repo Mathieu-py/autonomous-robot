@@ -1,5 +1,6 @@
 # Build output
 firmware/build/
+firmware/tests/build/
 
 # Python
 __pycache__/

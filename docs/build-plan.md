@@ -113,7 +113,7 @@ The first two weeks get the parts ordered and the simulation running.
 - [x] Run the Nav2 TurtleBot simulation and send it a goal, to see a full stack working
 - [x] Create the repo and a ROS 2 workspace
 - [x] Clone this repo into `~/robot_ws/src` and work from that copy
-- [x] Run the [bench tests](bench-tests.md) before soldering anything (all passed by 6 November 2026, except test 6, which needs the firmware)
+- [x] Run the [bench tests](bench-tests.md) before soldering anything (tests 1–5 and 7 passed by 6 November 2026, test 6 on 9 November with the safety firmware)
 - [ ] Write A* in C++ on a saved map, with unit tests
 - [ ] Write the pure-pursuit follower and drive the simulated robot along your own paths
 

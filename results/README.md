@@ -59,3 +59,14 @@ The model is `power = kS * sign(v) + kV * v + kA * a`, as in WPILib SysId. kS an
 | | Second | 0.010 | 0.349 | 0.0171 | 49 ms | 11 ms | kP 0.272, kI 5.54 |
 
 Wheels lifted, 12 V bench supply with a 1.5 A limit. The ramp fits have an RMS error of about 0.005 power. At 0.5 power the first wheel ran 2.9% faster forward than backward (1.454 against 1.413 rev/s); the second only 0.4% (1.432 against 1.425). The fit averages each wheel's two directions, and the integral term absorbs the rest. The 11 ms dead time is mostly the speed reading averaging over each 20 ms window. The hand estimate of kA used in run 05, 0.025, was about 45% too high.
+
+## Safety checks ([safety/](safety/))
+
+Logged at 50 Hz in the firmware's safety test mode (`kTestMode = TestMode::kSafety`): both wheels run at 1.0 rev/s for 8 s, then stop for 2 s, repeating for 60 s, so each stop can clear before the next check. Columns as the PID logs, plus `battery_volts` (filtered) and `stop` (the active stop reason). Bench test 6 in [docs/bench-tests.md](../docs/bench-tests.md) describes the checks. Plot with `python3 tools/plot_safety.py <input.csv> <output.png> "<title>"`.
+
+| Run | Checks done | Result |
+| --- | --- | --- |
+| [01](safety/2026-11-09-run01-no-load-1.0rps-bumpers-and-holds.png) ([CSV](safety/2026-11-09-run01-no-load-1.0rps-bumpers-and-holds.csv)) | Bumpers, several times; a wheel held by hand | Every bumper press stopped both motors at once and cleared at the next pause. Holding a wheel saturated its power at 0.95 and hit the bench supply's 1.5 A limit; the supply's voltage then sagged from 11.9 to about 10.7 V and the low-battery cutoff stopped the motors, about 1 s in. The wheel was still turning at about 0.45 rev/s, so the stall check (below 0.05 rev/s for 0.5 s) didn't trigger. Not yet tested: the low-battery cutoff from a deliberate voltage change, and the stall check. |
+| [02](safety/2026-11-09-run02-no-load-1.0rps-battery-and-stall.png) ([CSV](safety/2026-11-09-run02-no-load-1.0rps-battery-and-stall.csv)) | Supply lowered to 10.3 V; wheels held by hand; an encoder's ground unplugged (not in this log) | Lowering the supply stopped both motors at 10.50 V (filtered) with the wheels at full speed, and it cleared once the supply was back above 11.0 V. Each firm hold stopped the wheel within about 0.3 s, through the low-battery cutoff again: the 1.5 A limit sags the supply faster than the 0.5 s stall check. Unplugging an encoder's ground mid-run, so its speed reads 0 at high power, triggered the stall check (seen in PuTTY; not in this log). |
+
+Wheels lifted, 12 V bench supply with a 1.5 A limit, battery voltage read through the 33k/10k divider from the same supply.

@@ -19,6 +19,7 @@ add_executable(robot_firmware
   src/encoder.cpp
   src/wheel_speed.cpp
   src/speed_controller.cpp
+  src/safety.cpp
   src/test_sequences.cpp
 )
 
@@ -26,7 +27,12 @@ add_executable(robot_firmware
 pico_generate_pio_header(robot_firmware ${CMAKE_CURRENT_LIST_DIR}/src/quadrature_encoder.pio)
 
 # The Pico 2 W's LED is wired through its wireless chip, hence cyw43.
-target_link_libraries(robot_firmware pico_stdlib hardware_pio hardware_pwm pico_cyw43_arch_none)
+target_link_libraries(robot_firmware pico_stdlib hardware_adc hardware_pio hardware_pwm
+  hardware_watchdog pico_cyw43_arch_none)
+
+# Drop serial output when the laptop isn't reading, instead of blocking the
+# control loop for up to 500 ms (and tripping the 100 ms watchdog).
+target_compile_definitions(robot_firmware PRIVATE PICO_STDIO_USB_STDOUT_TIMEOUT_US=0)
 
 pico_enable_stdio_usb(robot_firmware 1)
 pico_enable_stdio_uart(robot_firmware 0)

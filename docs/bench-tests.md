@@ -12,18 +12,19 @@ Step-by-step checks for each part, with the results recorded as they are run. Te
 | [3. Encoders at 3.3 V](#3-encoders-at-33-v) | Pass, both motors | 2026-11-05 | Works at 3.3 V; no 5 V divider needed |
 | [4. Spin and stall current](#4-spin-and-stall-current) | Pass, both motors | 2026-11-06 | Stall about 2.4–3.2 A; free spin about 0.15 A, slightly above expected |
 | [5. Odometry constants](#5-odometry-constants) | Pass, both motors | 2026-11-06 | About 68 mm wheels; about 2473 ticks per turn |
-| [6. Bumper and low-battery cutoff](#6-bumper-and-low-battery-cutoff) | Blocked: needs the firmware | | |
+| [6. Bumper and low-battery cutoff](#6-bumper-and-low-battery-cutoff) | Pass | 2026-11-09 | Bumpers and low-battery cutoff stop the motors; stall check also confirmed |
 | [7. MPU-6050](#7-mpu-6050) | Pass | 2026-11-06 | Found at `0x68`; Z about 15,470 flat, needs calibrating |
 
 ## What's left
 
-- **Test 6:** once the firmware runs. Keep the DEN's bench supply until then.
+Nothing: every bench test has passed. The DEN's bench supply is still useful for teleop tests before the robot runs on its battery; return it, the leads and the calipers by the loan's due date.
 
 ## Results to carry forward
 
 - **Encoders:** they run at 3.3 V, so no 5 V divider is needed. Keep the Pico's internal pull-ups on, as the test script does.
 - **Odometry starting values:** wheel diameter about 68 mm, about 2473 ticks per wheel turn.
 - **IMU calibration:** lying flat, the MPU-6050 read about X 1250, Y 150 and Z 15,470, so calibrate its offsets before using it in the EKF.
+- **Safety thresholds (firmware):** low-battery stop at 10.5 V, Pi shutdown warning at 10.2 V, re-arm above 11.0 V; stall stop at power ≥ 0.5 and speed < 0.05 rev/s for 0.5 s.
 - **Stall protection:** the estimated stall current of about 2.4–3.2 A can exceed the MDD3A's 3 A continuous rating, so the firmware must not leave a motor stalled.
 
 ## Batteries
@@ -224,7 +225,10 @@ The wheels are larger than the 65 mm estimate, and the tick count is within 0.4%
 
 ### Results
 
-Not run.
+- **2026-11-09, pass,** with the firmware's safety test mode (wheels lifted, 12 V bench supply with a 1.5 A limit; battery read through the 33k/10k divider on GP28, from the same supply). Logs and details in [results/README.md](../results/README.md#safety-checks-safety).
+- **Bumpers:** every press stopped both motors at once, and they restarted only after the next commanded stop.
+- **Low battery:** lowering the supply to 10.3 V while the wheels ran stopped them as the filtered reading crossed 10.5 V; it cleared once the supply was back above 11.0 V.
+- **Stall:** on the bench, holding a wheel stopped it within about 0.3 s, but through the low-battery cutoff: the 1.5 A limit made the supply's voltage sag faster than the 0.5 s stall check. Unplugging an encoder's ground mid-run (speed reads 0 while power is high) did trigger the stall check. On a battery, with no current limit, the stall check is the one that acts.
 
 ## 7. MPU-6050
 

@@ -7,6 +7,8 @@ namespace {
 constexpr int64_t kRunMs = 3000;
 constexpr int64_t kPauseMs = 1000;
 constexpr int64_t kSpeedTestMs = kRunMs + kPauseMs + kRunMs;
+constexpr int64_t kCycleRunMs = 8000;
+constexpr int64_t kCycleStopMs = 2000;
 
 struct SysIdPhase {
   float start_power;
@@ -54,6 +56,21 @@ float SpeedTest::target_rps(absolute_time_t now) const {
     return 0.0f;
   }
   return -target_rps_;
+}
+
+void CyclingSpeedTest::start(absolute_time_t now) {
+  started_ = true;
+  start_time_ = now;
+}
+
+bool CyclingSpeedTest::is_running(absolute_time_t now) const {
+  return started_ && elapsed_ms(start_time_, now) < duration_ms_;
+}
+
+float CyclingSpeedTest::target_rps(absolute_time_t now) const {
+  const bool is_running_phase =
+      elapsed_ms(start_time_, now) % (kCycleRunMs + kCycleStopMs) < kCycleRunMs;
+  return is_running(now) && is_running_phase ? target_rps_ : 0.0f;
 }
 
 void SysIdTest::start(absolute_time_t now) {
