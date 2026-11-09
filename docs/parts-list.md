@@ -114,7 +114,7 @@ Everything except the small parts was ordered on 17 October 2026. The MDD3A arri
 - [x] **CanaKit:** Pi 5 and cooler, $161.90.
 - [x] **PiShop:** Pico 2 WH, MPU-6050, microSD card, micro-HDMI cable and micro-USB cable, $69.65.
 - [x] **MDD3A:** from RobotShop or DigiKey.
-- [x] **Small parts:** Amazon.ca, $111.74 before tax, ordered in November 2026; arrival not yet recorded.
+- [x] **Small parts:** Amazon.ca, $111.74 before tax, ordered in November 2026. By 9 November everything had arrived except the 18 AWG wire, capacitors and screw terminals.
 - [x] **Borrow tools from the [DEN](https://den.uwaterloo.ca/inventory/search)** (free for SYDE and BME undergrads; book a pickup with Chris McClellan, E7-6414):
   - digital caliper
   - bench power supply (0–30 V, 3 A), for bench tests 1, 4 and 6. The 2231A-30-3's fine if not returned is $1,000.

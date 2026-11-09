@@ -19,7 +19,7 @@ add_executable(robot_firmware src/main.cpp)
 pico_generate_pio_header(robot_firmware ${CMAKE_CURRENT_LIST_DIR}/src/quadrature_encoder.pio)
 
 # The Pico 2 W's LED is wired through its wireless chip, hence cyw43.
-target_link_libraries(robot_firmware pico_stdlib hardware_pio pico_cyw43_arch_none)
+target_link_libraries(robot_firmware pico_stdlib hardware_pio pico_cyw43_arch_none hardware_pwm)
 
 pico_enable_stdio_usb(robot_firmware 1)
 pico_enable_stdio_uart(robot_firmware 0)
