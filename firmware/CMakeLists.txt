@@ -19,8 +19,12 @@ add_executable(robot_firmware
   src/encoder.cpp
   src/wheel_speed.cpp
   src/speed_controller.cpp
+  src/wheel.cpp
+  src/drivetrain.cpp
+  src/drive_command.cpp
   src/safety.cpp
-  src/test_sequences.cpp
+  src/phase_sequence.cpp
+  src/bench_test.cpp
 )
 
 # Encoder counting program from Raspberry Pi's pico-examples (BSD-3-Clause).

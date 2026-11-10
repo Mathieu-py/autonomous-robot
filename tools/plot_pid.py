@@ -4,26 +4,16 @@ Usage: python3 tools/plot_pid.py <input.csv> <output.png> "<title>"
 """
 import sys
 
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+from chart_style import (BLUE, INK_2, ORANGE, SURFACE, read_log_rows,
+                         style_axes)
 
 if len(sys.argv) != 4:
     sys.exit(__doc__)
 log_path, out_path, title = sys.argv[1], sys.argv[2], sys.argv[3]
 
-rows = []
-with open(log_path, encoding="utf-8", errors="replace") as f:
-    for line in f:
-        parts = line.strip().split(",")
-        if len(parts) != 6:
-            continue
-        try:
-            rows.append([float(p) for p in parts])
-        except ValueError:
-            continue
-
+rows = read_log_rows(log_path, 6)
 if not rows:
     sys.exit(f"No PID log lines found in {log_path}")
 
@@ -34,30 +24,12 @@ first_power = [r[3] for r in rows]
 second_speed = [r[4] for r in rows]
 second_power = [r[5] for r in rows]
 
-SURFACE = "#fcfcfb"
-INK = "#0b0b0b"
-INK_2 = "#52514e"
-GRID = "#e4e3df"
-BLUE = "#2a78d6"
-ORANGE = "#eb6834"
-
-plt.rcParams.update({
-    "font.size": 10,
-    "axes.edgecolor": GRID,
-    "axes.labelcolor": INK_2,
-    "xtick.color": INK_2,
-    "ytick.color": INK_2,
-    "axes.titlecolor": INK,
-})
-
 fig, (ax_speed, ax_power) = plt.subplots(
     2, 1, figsize=(10, 6.5), sharex=True, facecolor=SURFACE,
     gridspec_kw={"height_ratios": [3, 2], "hspace": 0.12})
 
 for ax in (ax_speed, ax_power):
-    ax.set_facecolor(SURFACE)
-    ax.grid(axis="y", color=GRID, linewidth=0.8)
-    ax.spines[["top", "right"]].set_visible(False)
+    style_axes(ax)
     ax.axhline(0, color=INK_2, linewidth=0.8)
 
 ax_speed.step(t, target, where="post", color=INK_2, linewidth=1.5,

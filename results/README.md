@@ -43,7 +43,7 @@ Runs 01 and 03 were copied from the serial output in the terminal; the rest are 
 
 ## Motor identification ([sysid/](sysid/))
 
-Open-loop test from the firmware's identification mode (`kRunSysId = true`): slow power ramps to ±0.6 over 10 s, then steps to ±0.5 power, logged at 50 Hz with columns `t_ms`, `phase`, `power`, `first_speed`, `second_speed`. Fit with:
+Open-loop test from the firmware's identification mode (`kMode = Mode::kSysIdTest`): slow power ramps to ±0.6 over 10 s, then steps to ±0.5 power, logged at 50 Hz with columns `t_ms`, `phase`, `power`, `first_speed`, `second_speed`. Fit with:
 
 ```bash
 python3 tools/fit_motor.py <log.csv> <chart.png>
@@ -70,3 +70,16 @@ Logged at 50 Hz in the firmware's safety test mode (`kTestMode = TestMode::kSafe
 | [02](safety/2026-11-09-run02-no-load-1.0rps-battery-and-stall.png) ([CSV](safety/2026-11-09-run02-no-load-1.0rps-battery-and-stall.csv)) | Supply lowered to 10.3 V; wheels held by hand; an encoder's ground unplugged (not in this log) | Lowering the supply stopped both motors at 10.50 V (filtered) with the wheels at full speed, and it cleared once the supply was back above 11.0 V. Each firm hold stopped the wheel within about 0.3 s, through the low-battery cutoff again: the 1.5 A limit sags the supply faster than the 0.5 s stall check. Unplugging an encoder's ground mid-run, so its speed reads 0 at high power, triggered the stall check (seen in PuTTY; not in this log). |
 
 Wheels lifted, 12 V bench supply with a 1.5 A limit, battery voltage read through the 33k/10k divider from the same supply.
+
+## Teleop ([teleop/](teleop/))
+
+Keyboard driving through `pico_bridge` (`ros/pico_bridge`), recorded with `ros2 bag record /cmd_vel /joint_states /battery /rosout` into `~/robot_ws/bags/` (outside the repo). Convert with `python3 tools/plot_teleop.py <bag dir> <output.csv> <output.png> "<title>"` (ROS 2 sourced). Columns: `t_ms` (counted from the first wheel reading, 20 ms per Pico status), each wheel's commanded and measured speed (rev/s; commands rebuilt from `/cmd_vel` with the bridge's 1 s timeout), and `battery_volts`. Left wheel is the first motor, neither reversed. Every run: wheels lifted, 12 V bench supply with a 1.5 A limit, keyboard at 0.1 m/s and 0.5 rad/s.
+
+**WSL's clock steps backwards.** Inside WSL the system clock runs fast and is pulled back to Windows time about every 30 s, by 0.6–2.4 s. Every ROS timestamp on the laptop jumps back with it, so a recording read in timestamp order interleaves the next second or two with the previous one: in the first charts this looked like the wheels flicking between two speeds. The data itself was always in order (a live subscriber saw no reordering, and a fake Pico on a pseudo-terminal reproduced it with no hardware). `plot_teleop.py` therefore reads recordings in file order and counts time from the Pico's 20 ms status rate. Disabling Ubuntu's own time sync (`systemd-timesyncd`) roughly halved the jumps but didn't remove them. The Pi runs native Ubuntu, so this only affects the laptop.
+
+| Run | Driving | Result |
+| --- | --- | --- |
+| [01](teleop/2026-11-09-run01-no-load-keyboard.png) ([CSV](teleop/2026-11-09-run01-no-load-keyboard.csv)) | Forward, backward, turns on the spot and arcs | Both wheels followed every command. |
+| [02](teleop/2026-11-09-run02-no-load-keyboard-and-bridge-stop.png) ([CSV](teleop/2026-11-09-run02-no-load-keyboard-and-bridge-stop.csv)) | As run 01, then the bridge stopped mid-drive | Both wheels followed the commands. Stopping the bridge (Ctrl+C) mid-drive stopped the wheels through the Pico's 250 ms command timeout, as seen on the bench; the recording ends with the bridge, so it isn't in the data. |
+| [03](teleop/2026-11-09-run03-no-load-keyboard-and-bumper.png) ([CSV](teleop/2026-11-09-run03-no-load-keyboard-and-bumper.csv)) | Driving with two bumper presses | Each press stopped both wheels while the command continued; the bridge logged the stop and the clear, and driving resumed. |
+| [04](teleop/2026-11-09-run04-no-load-keyboard-quick-switching.png) ([CSV](teleop/2026-11-09-run04-no-load-keyboard-quick-switching.csv)) | 60 s with quick key switching | Both wheels followed every change. |

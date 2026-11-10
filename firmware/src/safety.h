@@ -1,7 +1,7 @@
 #pragma once
 
-// Conditions that stop the motors. Pure logic, so it can be unit-tested off
-// the Pico; main.cpp reads the hardware and passes the readings in.
+// Conditions that stop the motors. main.cpp reads the hardware and passes the
+// readings in.
 
 enum class StopReason {
   kNone,
@@ -35,9 +35,9 @@ class SafetyMonitor {
  private:
   StopReason active_cause(const SafetyInputs& inputs) const;
   void filter_battery(float battery_volts, float period_seconds);
-  void time_stalls(const SafetyInputs& inputs);
+  void update_stall_timers(const SafetyInputs& inputs);
 
-  StopReason latched_ = StopReason::kNone;
+  StopReason latched_reason_ = StopReason::kNone;
   bool has_battery_reading_ = false;
   float filtered_battery_volts_ = 0.0f;
   bool is_battery_low_ = false;

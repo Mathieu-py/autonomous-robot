@@ -12,8 +12,8 @@ struct MotorGains {
   float k_i;  // per revolution of accumulated error
 };
 
-// The setpoint at the two moments the controller uses; mixing them leads
-// ramps (PID runs 06 and 07 in results/README.md).
+// The setpoint at the two moments the controller uses; using one value for
+// both made the wheels run ahead of the ramp (PID runs 06 and 07).
 struct RampedSetpoint {
   float at_last_reading;        // rev/s, middle of the period just measured
   float for_next_period;        // rev/s, middle of the period about to run

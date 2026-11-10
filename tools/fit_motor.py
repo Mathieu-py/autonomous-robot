@@ -4,7 +4,7 @@ Usage: python3 tools/fit_motor.py <log.csv> <chart.png>
 
 Prints the fit and also saves it next to the chart, as <chart>.txt.
 
-The log comes from the firmware's identification test (kRunSysId = true):
+The log comes from the firmware's identification test (kMode = Mode::kSysIdTest):
 columns t_ms, phase, power, first_speed, second_speed. Phases 0 and 4 are slow
 power ramps, 2 and 6 are power steps, the rest are pauses.
 
@@ -18,11 +18,10 @@ PI gains use IMC (lambda) tuning for that first-order-plus-dead-time model:
 """
 import sys
 
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+
+from chart_style import BLUE, INK, SURFACE, read_log_rows, style_axes
 
 RAMP_PHASES = (0, 4)
 STEP_PHASES = (2, 6)
@@ -30,24 +29,9 @@ MOVING = 0.05  # rev/s; slower samples are mostly static friction, so skipped
 STEADY_MS = 500  # end of each step used as its steady speed
 CONTROL_PERIOD_S = 0.02
 
-SURFACE = "#fcfcfb"
-INK = "#0b0b0b"
-INK_2 = "#52514e"
-GRID = "#e4e3df"
-BLUE = "#2a78d6"
-
 
 def load(path):
-    rows = []
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            parts = line.strip().split(",")
-            if len(parts) != 5:
-                continue
-            try:
-                rows.append([float(p) for p in parts])
-            except ValueError:
-                continue
+    rows = read_log_rows(path, 5)
     if not rows:
         sys.exit(f"No identification data found in {path}")
     return np.array(rows)
@@ -91,10 +75,6 @@ def main():
         print(line)
         report.append(line)
 
-    plt.rcParams.update({
-        "font.size": 10, "axes.edgecolor": GRID, "axes.labelcolor": INK_2,
-        "xtick.color": INK_2, "ytick.color": INK_2, "axes.titlecolor": INK,
-    })
     fig, axes = plt.subplots(2, 3, figsize=(14, 8), facecolor=SURFACE)
 
     for row, (name, col) in enumerate((("First", 3), ("Second", 4))):
@@ -149,9 +129,7 @@ def main():
             ax.legend(frameon=False, loc="lower right" if p > 0 else "upper right")
 
     for ax in axes.flat:
-        ax.set_facecolor(SURFACE)
-        ax.grid(color=GRID, linewidth=0.8)
-        ax.spines[["top", "right"]].set_visible(False)
+        style_axes(ax, grid_axis="both")
 
     fig.tight_layout()
     fig.savefig(chart_path, dpi=130, facecolor=SURFACE)

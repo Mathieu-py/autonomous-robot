@@ -42,15 +42,15 @@ const char* stop_reason_name(StopReason reason) {
 
 StopReason SafetyMonitor::update(const SafetyInputs& inputs) {
   filter_battery(inputs.battery_volts, inputs.period_seconds);
-  time_stalls(inputs);
+  update_stall_timers(inputs);
 
   const StopReason cause = active_cause(inputs);
-  if (latched_ == StopReason::kNone) {
-    latched_ = cause;
+  if (latched_reason_ == StopReason::kNone) {
+    latched_reason_ = cause;
   } else if (cause == StopReason::kNone && inputs.is_stop_commanded) {
-    latched_ = StopReason::kNone;
+    latched_reason_ = StopReason::kNone;
   }
-  return latched_;
+  return latched_reason_;
 }
 
 StopReason SafetyMonitor::active_cause(const SafetyInputs& inputs) const {
@@ -88,7 +88,7 @@ void SafetyMonitor::filter_battery(float battery_volts, float period_seconds) {
   should_pi_shut_down_ = filtered_battery_volts_ < kPiShutdownVolts;
 }
 
-void SafetyMonitor::time_stalls(const SafetyInputs& inputs) {
+void SafetyMonitor::update_stall_timers(const SafetyInputs& inputs) {
   first_stall_seconds_ = is_stalling(inputs.first_power, inputs.first_speed_rps)
                              ? first_stall_seconds_ + inputs.period_seconds
                              : 0.0f;
