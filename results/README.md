@@ -62,7 +62,7 @@ Wheels lifted, 12 V bench supply with a 1.5 A limit. The ramp fits have an RMS e
 
 ## Safety checks ([safety/](safety/))
 
-Logged at 50 Hz in the firmware's safety test mode (`kTestMode = TestMode::kSafety`): both wheels run at 1.0 rev/s for 8 s, then stop for 2 s, repeating for 60 s, so each stop can clear before the next check. Columns as the PID logs, plus `battery_volts` (filtered) and `stop` (the active stop reason). Bench test 6 in [docs/bench-tests.md](../docs/bench-tests.md) describes the checks. Plot with `python3 tools/plot_safety.py <input.csv> <output.png> "<title>"`.
+Logged at 50 Hz in the firmware's safety test mode (`kMode = Mode::kSafetyTest`): both wheels run at 1.0 rev/s for 8 s, then stop for 2 s, repeating for 60 s, so each stop can clear before the next check. Columns as the PID logs, plus `battery_volts` (filtered) and `stop` (the active stop reason). Bench test 6 in [docs/bench-tests.md](../docs/bench-tests.md) describes the checks. Plot with `python3 tools/plot_safety.py <input.csv> <output.png> "<title>"`.
 
 | Run | Checks done | Result |
 | --- | --- | --- |
