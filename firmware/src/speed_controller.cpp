@@ -19,8 +19,7 @@ RampedSetpoint SetpointRamp::advance(float target_rps, float period_seconds) {
   RampedSetpoint setpoint;
   setpoint.at_last_reading = (previous_setpoint_rps_ + setpoint_rps_) / 2.0f;
   setpoint.for_next_period = setpoint_rps_ + step / 2.0f;
-  setpoint.accel_for_next_period =
-      period_seconds > 0.0f ? step / period_seconds : 0.0f;
+  setpoint.accel_for_next_period = step / period_seconds;
 
   previous_setpoint_rps_ = setpoint_rps_;
   setpoint_rps_ += step;
