@@ -10,7 +10,7 @@ As of 9 November 2026:
 
 - **Parts:** ordered and received.
 - **Simulation:** ROS 2 Jazzy, Gazebo and Nav2 run under WSL2. The Nav2 TurtleBot demo reaches its goals at about real time.
-- **Hardware:** every part passed its [bench tests](docs/bench-tests.md). The motor firmware runs PID speed control with bumper, low-battery, stall and watchdog stops, and drives from ROS 2 through keyboard teleop. Wiring, the chassis and moving ROS to the Pi are next.
+- **Hardware:** every part passed its [bench tests](docs/bench-tests.md). The motor firmware runs PID speed control with bumper, low-battery, stall and watchdog stops, and drives from ROS 2 through keyboard teleop. ROS now runs on the Pi and the laptop drives it over WiFi; wiring and the chassis are next.
 - **Milestones:** [milestone 1](docs/milestone-1.md) (drive it) is finished on the bench, with the wheels lifted; driving on the floor waits for the chassis. Each milestone ends with a measurement written up in this repo.
 
 ## Documents
@@ -18,6 +18,7 @@ As of 9 November 2026:
 - [build-plan.md](docs/build-plan.md): the final demo, milestones, schedule, computing setup, safety and risks
 - [parts-list.md](docs/parts-list.md): exact parts and prices, compatibility checks and wiring
 - [bench-tests.md](docs/bench-tests.md): step-by-step checks for each part, with results
+- [pi-setup.md](docs/pi-setup.md): ROS 2 on the robot's Pi, the Pico's USB link, and networking with the laptop
 - [milestone-1.md](docs/milestone-1.md): milestone 1 write-up: speed control, safety stops and teleop, with measurements
 - [results/](results/README.md): test data, logs and charts, such as PID step responses
 - [tools/](tools/): helper scripts, such as `plot_pid.py` for charting a PID log

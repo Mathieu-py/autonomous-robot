@@ -24,7 +24,7 @@ Finished on the bench on 9 November 2026, with the wheels lifted and a 12 V benc
 - Bench-test modes for the step test, the safety checks and motor identification, each logging CSV for the [tools/](../tools/) scripts.
 - Host unit tests for everything that isn't hardware: the speed loop, safety, command parsing, test sequences and the drivetrain.
 
-**ROS 2 bridge** ([ros/pico_bridge/](../ros/pico_bridge/)): turns `/cmd_vel` into wheel speeds for the Pico over USB serial, and publishes `/joint_states` and `/battery` from the Pico's 50 Hz status. It zeroes the command if `/cmd_vel` stops for 1 s.
+**ROS 2 bridge** ([ros/pico_bridge/](../ros/pico_bridge/)), run on the laptop for these tests and on the Pi since 10 November ([pi-setup.md](pi-setup.md)): turns `/cmd_vel` into wheel speeds for the Pico over USB serial, and publishes `/joint_states` and `/battery` from the Pico's 50 Hz status. It zeroes the command if `/cmd_vel` stops for 1 s.
 
 **Motor model, measured rather than guessed** ([motor identification](../results/README.md#motor-identification-sysid)): open-loop power ramps and steps, fitted as in WPILib SysId, with the PI gains from IMC tuning. The two motors' kV and kA agree within 2% (kV 0.345 and 0.349, kA 0.0174 and 0.0171).
 
@@ -39,6 +39,5 @@ Finished on the bench on 9 November 2026, with the wheels lifted and a 12 V benc
 ## Not done yet
 
 - **On the floor:** every run so far had the wheels lifted, on the bench supply. The next check is the same step test on the battery with the robot's weight on the wheels.
-- **Bridge on the Pi:** it ran on the laptop over WSL. It moves to the Pi before milestone 2.
 - **Pi shutdown on low battery:** the Pico sends `SHUTDOWN` at 10.2 V, but nothing on the Pi acts on it yet.
 - **Milestone clip:** to record once it drives on the floor.

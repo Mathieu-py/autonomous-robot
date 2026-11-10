@@ -27,7 +27,7 @@ class PicoBridgeNode : public rclcpp::Node {
  public:
   PicoBridgeNode()
       : Node("pico_bridge"),
-        port_path_(declare_parameter("port", "/dev/ttyACM0")),
+        port_path_(declare_parameter("port", "/dev/pico")),
         geometry_{declare_parameter("wheel_diameter_m", 0.068),
                   declare_parameter("wheel_separation_m", 0.20)},
         is_left_first_motor_(declare_parameter("left_motor", "first") ==
