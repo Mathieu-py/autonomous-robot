@@ -33,7 +33,7 @@ class PicoBridgeNode : public rclcpp::Node {
         is_left_first_motor_(declare_parameter("left_motor", "first") ==
                              std::string("first")),
         left_sign_(declare_parameter("left_reversed", false) ? -1.0 : 1.0),
-        right_sign_(declare_parameter("right_reversed", false) ? -1.0 : 1.0),
+        right_sign_(declare_parameter("right_reversed", true) ? -1.0 : 1.0),
         ticks_per_rev_(declare_parameter("ticks_per_rev", 2473.0)),
         cmd_vel_timeout_(rclcpp::Duration::from_seconds(
             declare_parameter("cmd_vel_timeout_s", 1.0))),

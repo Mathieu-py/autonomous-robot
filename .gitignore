@@ -23,6 +23,7 @@ Thumbs.db
 # Tool output
 .playwright-mcp/
 
-# Local CAD script and its SolidWorks exports
+# Local CAD scripts and their SolidWorks exports
 cad/preview/*.step
 cad/model.py
+cad/perfboard.py

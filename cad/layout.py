@@ -1,4 +1,4 @@
-"""Where each part sits, in millimetres: option B (chosen 2026-11-10).
+"""Where each part sits, in millimetres.
 
 Motors sit on the lower deck in printed mounts; the wheels turn through slots,
 between the two decks. Origin at the deck centre on the wheel axis, z = 0 on
@@ -34,7 +34,7 @@ DECK_RADIUS = 120.0                  # leaves a ring outside the wheel slots
 DECK_THICKNESS = 4.0
 LOWER_DECK_BOTTOM = CASTER_HEIGHT    # the caster bolts straight on
 LOWER_DECK_TOP = LOWER_DECK_BOTTOM + DECK_THICKNESS
-UPPER_DECK_BOTTOM = 80.0             # 12 mm above the wheel tops
+UPPER_DECK_BOTTOM = 79.0             # 11 mm above the wheel tops; pillars are 20 + 20 + 15 M3 standoffs
 WHEEL_SLOT_HALF_LENGTH = 35.5        # along x; wheel chord through the deck plus margin
 WHEEL_SLOT_MARGIN = 3.0              # each side of the tyre, along y
 GEARBOX_CRADLE_DEPTH = 2.0           # pocket in the deck top under each gearbox
@@ -87,14 +87,23 @@ IMU = (0.0, 0.0, IMU_LENGTH, IMU_WIDTH)                 # above the wheel axis
 CONVERTER = (-45.0, 70.0, CONVERTER_LENGTH + 2 * CONVERTER_TAB_LENGTH,
              CONVERTER_WIDTH)                           # tabs along x; powers the Pi
 MDD3A = (50.0, 0.0, MDD3A_LENGTH, MDD3A_WIDTH)
-PI = (-60.0, 0.0, PI_LENGTH, PI_WIDTH)               # USB and Ethernet face the rear
-PI_HOLES = [(-17.5 - 3.5 - dx, dy) for dx in (0.0, 58.0) for dy in (24.5, -24.5)]
+# 10 mm right of centre: its USB-C plug (19 mm out, plus 15 mm to bend) clears the converter.
+PI_Y = -10.0
+PI = (-60.0, PI_Y, PI_LENGTH, PI_WIDTH)              # USB and Ethernet face the rear, USB-C faces left
+PI_HOLES = [(-17.5 - 3.5 - dx, PI_Y + dy) for dx in (0.0, 58.0) for dy in (24.5, -24.5)]
+PI_HEIGHT = 17.5                     # measured: board underside to the USB ports' top
+PI_STANDOFF = 6.0
+PI_USB_C_X = -17.5 - 11.2            # datasheet: 11.2 from the board's front edge
+PI_USB_C_PLUG = (19.0, 15.0)         # measured: out past the board edge, then room to bend
 ROCKER_SWITCH = (90.0, -45.0)        # front-right, in reach
-CABLE_SLOTS = [(15.0, y, 10.0, 30.0) for y in (45.0, -45.0)]
+# Between the IMU and the MDD3A's screw terminals (they face the rear): motor,
+# MDD3A power and control, IMU and Pico USB wires. Beside the converter: its input.
+CABLE_SLOTS = [(19.0, 0.0, 10.0, 40.0), (-55.0, 43.0, 30.0, 10.0)]
 
 # --- LiDAR plate, on M3 standoffs above the Pi ---
-LIDAR_X = -45.0
-LIDAR_PLATE = (LIDAR_X, 0.0, 70.0, 70.0)
-LIDAR_PLATE_HEIGHT = 28.0            # above the upper deck: 20 + 8 standoffs
-LIDAR_PLATE_PILLARS = [(LIDAR_X + dx, dy) for dx in (-32.0, 32.0) for dy in (32.0, -32.0)]
+LIDAR_X = -45.0                      # its cable leaves the base side: face it rearwards, off the plate edge
+LIDAR_PLATE = (LIDAR_X, PI_Y, 70.0, 70.0)
+LIDAR_PLATE_THICKNESS = 4.0
+LIDAR_PLATE_HEIGHT = 35.0            # 20 + 15 standoffs: 11.5 mm of air above the Pi for its fan
+LIDAR_PLATE_PILLARS = [(LIDAR_X + dx, PI_Y + dy) for dx in (-32.0, 32.0) for dy in (32.0, -32.0)]
 BUMPER_MAX_MASS = 20.0               # grams; it sits furthest forward
