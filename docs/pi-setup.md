@@ -85,7 +85,7 @@ WSL2's default NAT mode hides it behind a virtual adapter, so ROS discovery can'
    ```
    Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
    ```
-3. Run `wsl --shutdown` (this also restarts Docker Desktop). WSL then has an address on the home network (`10.0.0.55`, with the Pi at `10.0.0.225`).
+3. Run `wsl --shutdown` (this also restarts Docker Desktop). WSL then has an address on the home network (`10.0.0.55`, with the Pi at `10.0.0.226`; the router can change both).
 
 On both machines, the same ROS domain keeps the robot's topics apart from any other ROS on the network:
 
@@ -119,15 +119,11 @@ sudo chmod 440 /etc/sudoers.d/robot-poweroff
 sudo visudo -c
 ```
 
-Make a shut-down Pi 5 draw almost nothing; by default it still draws about 1.3 W from the battery:
+After a power-off the Pi still draws about 1.3 W, so unplug the battery.
 
-```bash
-sudo rpi-eeprom-config --edit        # add the line POWER_OFF_ON_HALT=1, save
-```
+**Never run `sudo rpi-eeprom-config --edit` on this Pi.** Ubuntu's tool rewrites the bootloader with the older image it ships (December 2025), and on 23 November that left this board unable to start its memory: 8 short blinks, repeating. The fix was Raspberry Pi's `rpi-boot-eeprom-recovery-<date>-2712-sd.zip` from the [rpi-eeprom releases](https://github.com/raspberrypi/rpi-eeprom/releases): copy `recovery.bin`, `pieeprom.bin` and `pieeprom.sig` from its image onto the card's boot partition, power on until the LED blinks fast, then take the three files off again. `sudo rpi-eeprom-update` with no options only ever installs a newer bootloader, so it's safe.
 
-(`sudo apt install rpi-eeprom` if the command is missing.) It takes effect at the next boot. After a power-off, unplug the battery: the converter and the battery divider still draw a little.
-
-Start the bridge at boot, and again if it exits, as it does when the Pico is replugged or reboots:
+Start the bridge at boot, and again if it exits, as it does when the Pico is replugged or reboots. It waits up to 30 s for WiFi first: ROS only uses the networks that are up when a node starts.
 
 ```bash
 sudo cp ~/robot_ws/src/autonomous-robot/ros/pico_bridge/systemd/pico-bridge.service /etc/systemd/system/
@@ -141,12 +137,12 @@ To run the bridge by hand instead, `sudo systemctl stop pico-bridge` first: only
 **Check:**
 
 1. `sudo -n /usr/bin/systemctl poweroff` powers the Pi off without asking for a password.
-2. After a reboot, the laptop sees `/joint_states` at 50 Hz without anything started on the Pi.
+2. After a reboot, the laptop sees `/joint_states` at 50 Hz without anything started on the Pi. A Pi that has powered off shows a steady red LED: press its power button, or unplug the battery until the LED goes out.
 3. End to end: with the battery unplugged, feed the XT60 from the bench supply and turn it down to 10.0 V. Within a few seconds the Pi powers off, and the log's last line reads `Pico: SHUTDOWN: battery critically low. Powering off the Pi`.
 
 ## 7. Reflashing the Pico from the Pi
 
-The Pico's BOOTSEL button is under the upper deck, but the firmware reboots into BOOTSEL when its serial port is set to 1200 baud. Build on the laptop, then copy the firmware over from the repo folder in WSL (use `10.0.0.225` if `robot-pi.local` doesn't resolve):
+The Pico's BOOTSEL button is under the upper deck, but the firmware reboots into BOOTSEL when its serial port is set to 1200 baud. Build on the laptop, then copy the firmware over from the repo folder in WSL (use the Pi's address, `10.0.0.226`, if `robot-pi.local` doesn't resolve):
 
 ```bash
 scp firmware/build/robot_firmware.uf2 msevestre@robot-pi.local:~

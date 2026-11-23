@@ -7,6 +7,8 @@ Wants=network-online.target
 [Service]
 User=msevestre
 Environment=ROS_DOMAIN_ID=17
+# ROS only uses networks up at start: wait up to 30 s for WiFi, then start anyway.
+ExecStartPre=/bin/sh -c 'for i in $$(seq 30); do ip -4 addr show wlan0 | grep -q inet && exit 0; sleep 1; done'
 ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && source /home/msevestre/robot_ws/install/setup.bash && exec ros2 run pico_bridge pico_bridge_node'
 Restart=always
 RestartSec=3
