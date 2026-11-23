@@ -9,6 +9,7 @@ come from the slow ramps, kA from the steps' time constant; PI gains from IMC
 (lambda) tuning of that first-order-plus-dead-time model.
 """
 import sys
+from collections import namedtuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,6 +21,14 @@ STEP_PHASES = (2, 6)
 MOVING = 0.05  # rev/s; slower samples are mostly static friction, so skipped
 STEADY_MS = 500  # end of each step used as its steady speed
 CONTROL_PERIOD_S = 0.02
+
+
+StepFit = namedtuple("StepFit", "tau theta v_ss t v power")
+
+
+def step_model(t, v_ss, tau, theta):
+    """First order plus dead time: nothing until theta, then rise with tau."""
+    return np.where(t > theta, v_ss * (1 - np.exp(-(t - theta) / tau)), 0.0)
 
 
 def load(path):
@@ -47,13 +56,11 @@ def fit_step(data, phase, col):
     best = (np.inf, 0.0, 0.0)
     for theta in np.arange(0.0, 0.081, 0.001):
         for tau in np.arange(0.005, 0.401, 0.001):
-            model = np.where(t > theta,
-                             v_ss * (1 - np.exp(-(t - theta) / tau)), 0.0)
-            err = float(np.sum((v - model) ** 2))
+            err = float(np.sum((v - step_model(t, v_ss, tau, theta)) ** 2))
             if err < best[0]:
                 best = (err, tau, theta)
     _, tau, theta = best
-    return tau, theta, v_ss, t, v, float(rows[0, 2])
+    return StepFit(tau, theta, v_ss, t, v, float(rows[0, 2]))
 
 
 def main():
@@ -72,8 +79,8 @@ def main():
     for row, (name, col) in enumerate((("First", 3), ("Second", 4))):
         k_s, k_v, speed, power, rms = fit_ramps(data, col)
         steps = [fit_step(data, phase, col) for phase in STEP_PHASES]
-        tau = float(np.mean([s[0] for s in steps]))
-        theta = float(np.mean([s[1] for s in steps]))
+        tau = float(np.mean([s.tau for s in steps]))
+        theta = float(np.mean([s.theta for s in steps]))
         k_a = k_v * tau
         # The controller also waits on average half a period before acting.
         delay = theta + CONTROL_PERIOD_S / 2
@@ -83,10 +90,10 @@ def main():
         say(f"  kV = {k_v:.4f} power per rev/s   (ramp fit RMS error {rms:.4f})")
         say(f"  kA = {k_a:.4f} power per rev/s²  "
               f"(tau {tau * 1000:.0f} ms, dead time {theta * 1000:.0f} ms)")
-        for (tau_i, theta_i, v_ss, _, _, p), phase in zip(steps, STEP_PHASES):
-            predicted = (abs(p) - k_s) / k_v * np.sign(p)
-            say(f"  step {phase}: power {p:+.2f}, tau {tau_i * 1000:.0f} ms, "
-                  f"dead time {theta_i * 1000:.0f} ms, steady {v_ss:+.3f} rev/s "
+        for s, phase in zip(steps, STEP_PHASES):
+            predicted = (abs(s.power) - k_s) / k_v * np.sign(s.power)
+            say(f"  step {phase}: power {s.power:+.2f}, tau {s.tau * 1000:.0f} ms, "
+                  f"dead time {s.theta * 1000:.0f} ms, steady {s.v_ss:+.3f} rev/s "
                   f"(model predicts {predicted:+.3f})")
         say(f"  PI gains (IMC), loop delay {delay * 1000:.0f} ms:")
         for label, lam in (("tight, lambda = delay", delay),
@@ -105,20 +112,21 @@ def main():
         ax.set_ylabel("Power (PWM fraction)")
         ax.legend(frameon=False, loc="upper left")
 
-        for i, (tau_i, theta_i, v_ss, t, v, p) in enumerate(steps):
+        for i, s in enumerate(steps):
             ax = axes[row, 1 + i]
-            model = np.where(t > theta_i,
-                             v_ss * (1 - np.exp(-(t - theta_i) / tau_i)), 0.0)
-            ax.plot(t, v, color=BLUE, linewidth=2, label="Measured")
-            ax.plot(t, model, color=INK, linewidth=1.5, linestyle=(0, (4, 3)),
-                    label=f"Fit: tau {tau_i * 1000:.0f} ms, "
-                          f"dead time {theta_i * 1000:.0f} ms")
-            direction = "forward" if p > 0 else "backward"
-            ax.set_title(f"{name} motor: step to {p:+.1f} power, {direction}",
-                         loc="left")
+            ax.plot(s.t, s.v, color=BLUE, linewidth=2, label="Measured")
+            ax.plot(s.t, step_model(s.t, s.v_ss, s.tau, s.theta), color=INK,
+                    linewidth=1.5, linestyle=(0, (4, 3)),
+                    label=f"Fit: tau {s.tau * 1000:.0f} ms, "
+                          f"dead time {s.theta * 1000:.0f} ms")
+            is_forward = s.power > 0
+            direction = "forward" if is_forward else "backward"
+            ax.set_title(f"{name} motor: step to {s.power:+.1f} power, "
+                         f"{direction}", loc="left")
             ax.set_xlabel("Time since step (s)")
             ax.set_ylabel("Speed (rev/s)")
-            ax.legend(frameon=False, loc="lower right" if p > 0 else "upper right")
+            ax.legend(frameon=False,
+                      loc="lower right" if is_forward else "upper right")
 
     for ax in axes.flat:
         style_axes(ax, grid_axis="both")

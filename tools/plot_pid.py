@@ -6,8 +6,8 @@ import sys
 
 import matplotlib.pyplot as plt
 
-from chart_style import (BLUE, INK_2, ORANGE, SURFACE, read_log_rows,
-                         style_axes)
+from chart_style import (BLUE, INK_2, ORANGE, SURFACE, plot_target,
+                         read_log_rows, style_axes)
 
 if len(sys.argv) != 4:
     sys.exit(__doc__)
@@ -17,12 +17,8 @@ rows = read_log_rows(log_path, 6)
 if not rows:
     sys.exit(f"No PID log lines found in {log_path}")
 
-t = [r[0] / 1000 for r in rows]
-target = [r[1] for r in rows]
-first_speed = [r[2] for r in rows]
-first_power = [r[3] for r in rows]
-second_speed = [r[4] for r in rows]
-second_power = [r[5] for r in rows]
+t_ms, target, first_speed, first_power, second_speed, second_power = zip(*rows)
+t = [ms / 1000 for ms in t_ms]
 
 fig, (ax_speed, ax_power) = plt.subplots(
     2, 1, figsize=(10, 6.5), sharex=True, facecolor=SURFACE,
@@ -32,8 +28,7 @@ for ax in (ax_speed, ax_power):
     style_axes(ax)
     ax.axhline(0, color=INK_2, linewidth=0.8)
 
-ax_speed.step(t, target, where="post", color=INK_2, linewidth=1.5,
-              linestyle=(0, (4, 3)), label="Target")
+plot_target(ax_speed, t, target, "Target")
 ax_speed.plot(t, first_speed, color=BLUE, linewidth=2, label="First wheel")
 ax_speed.plot(t, second_speed, color=ORANGE, linewidth=2, label="Second wheel")
 ax_speed.set_ylabel("Speed (rev/s)")

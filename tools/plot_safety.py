@@ -8,7 +8,7 @@ import sys
 import matplotlib.pyplot as plt
 
 from chart_style import (BLUE, INK, INK_2, ORANGE, STOP_FILL, SURFACE,
-                         read_log_rows, style_axes)
+                         label_events, plot_target, read_log_rows, style_axes)
 
 if len(sys.argv) != 4:
     sys.exit(__doc__)
@@ -18,12 +18,9 @@ rows = read_log_rows(log_path, 8, text_columns=1)
 if not rows:
     sys.exit(f"No safety log lines found in {log_path}")
 
-t = [r[0] / 1000 for r in rows]
-setpoint = [r[1] for r in rows]
-first_speed, first_power = [r[2] for r in rows], [r[3] for r in rows]
-second_speed, second_power = [r[4] for r in rows], [r[5] for r in rows]
-battery = [r[6] for r in rows]
-stops = [r[7] for r in rows]
+(t_ms, setpoint, first_speed, first_power, second_speed, second_power,
+ battery, stops) = zip(*rows)
+t = [ms / 1000 for ms in t_ms]
 
 fig, (ax_speed, ax_power, ax_battery) = plt.subplots(
     3, 1, figsize=(11, 8), sharex=True, facecolor=SURFACE,
@@ -42,13 +39,10 @@ for ax in (ax_speed, ax_power, ax_battery):
     style_axes(ax)
     for begin, end, _ in stop_spans:
         ax.axvspan(begin, end, color=STOP_FILL, linewidth=0, zorder=0)
-for begin, _, reason in stop_spans:
-    ax_speed.annotate(reason, (begin, 1.0), xycoords=("data", "axes fraction"),
-                      xytext=(3, -3), textcoords="offset points",
-                      color=INK_2, fontsize=8, va="top", rotation=90)
+label_events(ax_speed, [(begin, reason) for begin, _, reason in stop_spans],
+             fontsize=8)
 
-ax_speed.step(t, setpoint, where="post", color=INK_2, linewidth=1.5,
-              linestyle=(0, (4, 3)), label="Setpoint")
+plot_target(ax_speed, t, setpoint, "Setpoint")
 ax_speed.plot(t, first_speed, color=BLUE, linewidth=1.5, label="First wheel")
 ax_speed.plot(t, second_speed, color=ORANGE, linewidth=1.5,
               label="Second wheel")

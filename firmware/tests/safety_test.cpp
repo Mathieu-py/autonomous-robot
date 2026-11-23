@@ -1,4 +1,4 @@
-#include "safety.h"
+#include "drive/safety.h"
 
 #include <initializer_list>
 
@@ -11,10 +11,8 @@ constexpr float kPeriod = 0.02f;
 SafetyInputs running_normally() {
   return {.is_bumper_pressed = false,
           .battery_volts = 12.0f,
-          .first_power = 0.35f,
-          .first_speed_rps = 1.0f,
-          .second_power = 0.35f,
-          .second_speed_rps = 1.0f,
+          .first = {.count = 0, .speed_rps = 1.0f, .power = 0.35f},
+          .second = {.count = 0, .speed_rps = 1.0f, .power = 0.35f},
           .is_stop_commanded = false,
           .period_seconds = kPeriod};
 }
@@ -44,6 +42,17 @@ void test_bumper_stops_and_stays_stopped_until_a_stop_is_commanded() {
 
   inputs.is_stop_commanded = true;
   CHECK(safety.update(inputs) == StopReason::kNone);
+}
+
+void test_reports_the_cause_still_holding_the_stop() {
+  SafetyMonitor safety;
+  SafetyInputs inputs = running_normally();
+  inputs.is_bumper_pressed = true;
+  safety.update(inputs);
+
+  inputs.is_bumper_pressed = false;
+  inputs.battery_volts = 9.0f;
+  CHECK(run_for(safety, inputs, 5.0f) == StopReason::kLowBattery);
 }
 
 void test_bumper_held_down_blocks_clearing() {
@@ -113,8 +122,8 @@ void test_low_battery_only_clears_once_recharged() {
 void test_stall_stops_only_after_half_a_second() {
   SafetyMonitor safety;
   SafetyInputs inputs = running_normally();
-  inputs.second_power = 0.6f;
-  inputs.second_speed_rps = 0.0f;
+  inputs.second.power = 0.6f;
+  inputs.second.speed_rps = 0.0f;
   CHECK(run_for(safety, inputs, 0.4f) == StopReason::kNone);
   CHECK(run_for(safety, inputs, 0.2f) == StopReason::kSecondStall);
 }
@@ -122,8 +131,8 @@ void test_stall_stops_only_after_half_a_second() {
 void test_wheel_that_starts_moving_resets_the_stall_timer() {
   SafetyMonitor safety;
   SafetyInputs stalled = running_normally();
-  stalled.first_power = 0.6f;
-  stalled.first_speed_rps = 0.0f;
+  stalled.first.power = 0.6f;
+  stalled.first.speed_rps = 0.0f;
   run_for(safety, stalled, 0.4f);
   safety.update(running_normally());
   CHECK(run_for(safety, stalled, 0.4f) == StopReason::kNone);
@@ -134,6 +143,7 @@ void test_wheel_that_starts_moving_resets_the_stall_timer() {
 int main() {
   test_normal_running_does_not_stop();
   test_bumper_stops_and_stays_stopped_until_a_stop_is_commanded();
+  test_reports_the_cause_still_holding_the_stop();
   test_bumper_held_down_blocks_clearing();
   test_short_battery_dip_does_not_stop();
   test_sustained_low_battery_stops_and_warns_the_pi();

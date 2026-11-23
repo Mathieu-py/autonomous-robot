@@ -1,4 +1,4 @@
-#include "speed_controller.h"
+#include "drive/speed_controller.h"
 
 #include <algorithm>
 
@@ -71,7 +71,7 @@ void test_brakes_once_stopped_at_both_moments() {
   CHECK(power == 0.0f);
 }
 
-void test_output_never_exceeds_max_power() {
+void test_integral_does_not_wind_up_while_saturated() {
   SpeedController controller(kGains, 0.95f);
   const RampedSetpoint flat_out = {.at_last_reading = 2.5f,
                                    .for_next_period = 2.5f,
@@ -80,7 +80,10 @@ void test_output_never_exceeds_max_power() {
   for (int i = 0; i < 100; ++i) {
     power = controller.power_for_next_period(flat_out, 0.0f, kPeriod);
   }
-  CHECK(power <= 0.95f);
+  CHECK_NEAR(power, 0.95f, 1e-6);
+
+  // Once at speed, a wound-up integral would hold the output saturated.
+  CHECK(controller.power_for_next_period(flat_out, 2.5f, kPeriod) < 0.95f);
 }
 
 }  // namespace
@@ -89,6 +92,6 @@ int main() {
   test_ramp_limits_each_step_to_max_accel();
   test_reaches_target_without_overshoot();
   test_brakes_once_stopped_at_both_moments();
-  test_output_never_exceeds_max_power();
+  test_integral_does_not_wind_up_while_saturated();
   return report("speed_controller");
 }

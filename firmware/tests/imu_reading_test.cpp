@@ -1,4 +1,4 @@
-#include "imu_reading.h"
+#include "devices/imu_reading.h"
 
 #include <array>
 #include <numbers>

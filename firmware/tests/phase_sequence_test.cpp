@@ -1,4 +1,4 @@
-#include "phase_sequence.h"
+#include "bench/phase_sequence.h"
 
 #include "check.h"
 

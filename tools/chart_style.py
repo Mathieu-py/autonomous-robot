@@ -28,6 +28,20 @@ def style_axes(ax, grid_axis="y"):
     ax.spines[["top", "right"]].set_visible(False)
 
 
+def plot_target(ax, t, values, label):
+    """The commanded value, as a dashed step."""
+    ax.step(t, values, where="post", color=INK_2, linewidth=1.5,
+            linestyle=(0, (4, 3)), label=label)
+
+
+def label_events(ax, events, fontsize):
+    """Writes each (time, text) sideways from the top of the axes."""
+    for x, text in events:
+        ax.annotate(text, (x, 1.0), xycoords=("data", "axes fraction"),
+                    xytext=(3, -3), textcoords="offset points", color=INK_2,
+                    fontsize=fontsize, va="top", rotation=90)
+
+
 def read_log_rows(path, column_count, text_columns=0):
     """The firmware's CSV rows, also from a PuTTY log with other lines mixed in.
     The last text_columns fields stay text; the rest are parsed as floats."""

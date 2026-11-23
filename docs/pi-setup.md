@@ -32,7 +32,9 @@ These are still 24.04 packages. Don't run `do-release-upgrade`, which the login 
 
 **Check:** `ros2 doctor --report | grep "distribution name"` shows `jazzy`.
 
-## 2. The bridge
+## 2. The robot's packages
+
+Three ROS packages: `pico_bridge` (the Pico's serial link), `robot_description` (the URDF and `config/robot.yaml`, the one copy of the wheel diameter, track width and ticks per rev) and `wheel_odometry`.
 
 ```bash
 mkdir -p ~/robot_ws/src && cd ~/robot_ws/src
@@ -40,14 +42,16 @@ git clone https://github.com/Mathieu-py/autonomous-robot.git
 cd ~/robot_ws
 sudo rosdep init; rosdep update
 rosdep install --from-paths src --ignore-src -y
-colcon build --packages-select pico_bridge
-colcon test --packages-select pico_bridge && colcon test-result --verbose | tail -1
+colcon build
+colcon test && colcon test-result --verbose | tail -1
 echo "source ~/robot_ws/install/setup.bash" >> ~/.bashrc
 ```
 
 The firmware folder is skipped; it's built on the laptop with the Pico SDK and flashed by copying `firmware/build/robot_firmware.uf2` onto the Pico in BOOTSEL mode.
 
-**Check:** 8 tests, 0 failures.
+To update later, run `git pull` in `~/robot_ws/src/autonomous-robot`, then the `rosdep install`, `colcon build` and `colcon test` lines again from `~/robot_ws`, and restart the bridge (`sudo systemctl restart pico-bridge`).
+
+**Check:** 0 failures. Results from tests that have since been renamed stay in `build/` and are still counted, so the total can run higher than the number of tests.
 
 ## 3. The Pico's USB link
 
@@ -62,10 +66,10 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 The udev rule names the Pico `/dev/pico` whatever `ttyACM` number it gets: on a replug it came up as `ttyACM1`. `2e8a:0009` is the Pico SDK's USB serial on the RP2350. `/dev/pico` is the bridge's default port.
 
-Run the bridge (once section 6 is done, it starts at boot instead):
+Run the bridge (once section 6 is done, it starts at boot instead). It needs `robot.yaml` and won't start without it:
 
 ```bash
-ros2 run pico_bridge pico_bridge_node
+ros2 run pico_bridge pico_bridge_node --ros-args --params-file ~/robot_ws/install/robot_description/share/robot_description/config/robot.yaml
 ```
 
 **Check:** it logs `Connected to the Pico on /dev/pico`; `ros2 topic hz /joint_states` shows 50 Hz; `/battery` reads the supply. Measured: 50.00 Hz with 0.02 ms jitter on the Pi, 11.93 V on a 12 V supply, and turning the first wheel by hand moved the left joint.
@@ -123,7 +127,7 @@ After a power-off the Pi still draws about 1.3 W, so unplug the battery.
 
 **Never run `sudo rpi-eeprom-config --edit` on this Pi.** Ubuntu's tool rewrites the bootloader with the older image it ships (December 2025), and on 23 November that left this board unable to start its memory: 8 short blinks, repeating. The fix was Raspberry Pi's `rpi-boot-eeprom-recovery-<date>-2712-sd.zip` from the [rpi-eeprom releases](https://github.com/raspberrypi/rpi-eeprom/releases): copy `recovery.bin`, `pieeprom.bin` and `pieeprom.sig` from its image onto the card's boot partition, power on until the LED blinks fast, then take the three files off again. `sudo rpi-eeprom-update` with no options only ever installs a newer bootloader, so it's safe.
 
-Start the bridge at boot, and again if it exits, as it does when the Pico is replugged or reboots. It waits up to 30 s for WiFi first: ROS only uses the networks that are up when a node starts.
+Start the bridge at boot, and again if it exits, as it does when the Pico is replugged or reboots. It waits up to 30 s for WiFi first: ROS only uses the networks that are up when a node starts. The service passes it `robot.yaml`. Copy the service file again whenever it changes in the repo.
 
 ```bash
 sudo cp ~/robot_ws/src/autonomous-robot/ros/pico_bridge/systemd/pico-bridge.service /etc/systemd/system/
@@ -159,3 +163,15 @@ sudo cp ~/robot_firmware.uf2 /mnt && sync
 sudo umount -l /mnt                   # the Pico has already rebooted into the new firmware
 sudo systemctl start pico-bridge
 ```
+
+## 8. Frames and wheel odometry
+
+`robot_state_publisher` publishes the URDF's frames (`base_link` on the floor under the axle, the wheels, the caster and `imu_link`), and `wheel_odometry` turns `/joint_states` into `/odom` and the `odom → base_link` transform. With the bridge running, in its own terminal on the Pi:
+
+```bash
+ros2 launch robot_description robot.launch.py
+```
+
+It logs `Wheel diameter 0.0680 m, separation 0.1800 m`. On the laptop, `rviz2` with Fixed Frame `odom`, a **TF** display and a **RobotModel** display reading `/robot_description` shows the robot moving as it drives. Read the pose with `ros2 run tf2_ros tf2_echo odom base_link`.
+
+**Check (not yet run):** driven about 1 m forward, `/odom` x matches a tape measure; spun about 90° left on the spot, the yaw reads about +90°.

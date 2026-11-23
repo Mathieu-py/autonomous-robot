@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<!-- Sizes from cad/dimensions.py and cad/layout.py. base_link is on the floor
+     under the middle of the wheel axle: x forward, y left, z up. -->
+<robot name="autonomous_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="drive"
+      value="${xacro.load_yaml('$(find robot_description)/config/robot.yaml')['/**']['ros__parameters']}"/>
+  <xacro:property name="wheel_radius" value="${drive['wheel_diameter_m'] / 2}"/>
+  <xacro:property name="wheel_separation" value="${drive['wheel_separation_m']}"/>
+  <xacro:property name="wheel_width" value="0.027"/>
+  <xacro:property name="deck_radius" value="0.120"/>
+  <xacro:property name="deck_thickness" value="0.004"/>
+  <xacro:property name="lower_deck_bottom" value="0.020"/>
+  <xacro:property name="upper_deck_bottom" value="0.079"/>
+  <xacro:property name="caster_x" value="-0.090"/>
+  <xacro:property name="caster_ball_radius" value="0.0079"/>
+  <!-- On 6 mm standoffs on the upper deck, above the axle. -->
+  <xacro:property name="imu_z" value="0.090"/>
+
+  <material name="deck"><color rgba="0.85 0.85 0.85 1"/></material>
+  <material name="tyre"><color rgba="0.1 0.1 0.1 1"/></material>
+  <material name="imu"><color rgba="0.85 0.25 0.25 1"/></material>
+
+  <xacro:macro name="deck" params="name bottom">
+    <link name="${name}">
+      <visual>
+        <geometry><cylinder radius="${deck_radius}" length="${deck_thickness}"/></geometry>
+        <material name="deck"/>
+      </visual>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}"/>
+      <origin xyz="0 0 ${bottom + deck_thickness / 2}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="wheel" params="side y_sign">
+    <link name="${side}_wheel">
+      <visual>
+        <origin rpy="${pi / 2} 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="tyre"/>
+      </visual>
+    </link>
+    <!-- Names match pico_bridge's /joint_states; forward is positive on both. -->
+    <joint name="${side}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${side}_wheel"/>
+      <origin xyz="0 ${y_sign * wheel_separation / 2} ${wheel_radius}"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <link name="base_link"/>
+
+  <xacro:deck name="lower_deck" bottom="${lower_deck_bottom}"/>
+  <xacro:deck name="upper_deck" bottom="${upper_deck_bottom}"/>
+  <xacro:wheel side="left" y_sign="1"/>
+  <xacro:wheel side="right" y_sign="-1"/>
+
+  <link name="caster">
+    <visual>
+      <geometry><sphere radius="${caster_ball_radius}"/></geometry>
+      <material name="tyre"/>
+    </visual>
+  </link>
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster"/>
+    <origin xyz="${caster_x} 0 ${caster_ball_radius}"/>
+  </joint>
+
+  <link name="imu_link">
+    <visual>
+      <geometry><box size="0.026 0.018 0.0016"/></geometry>
+      <material name="imu"/>
+    </visual>
+  </link>
+  <!-- The chip's Y points forward and its X to the right: a -90 degree yaw. -->
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 ${imu_z}" rpy="0 0 ${-pi / 2}"/>
+  </joint>
+
+</robot>

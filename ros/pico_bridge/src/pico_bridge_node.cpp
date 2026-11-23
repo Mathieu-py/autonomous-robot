@@ -2,14 +2,15 @@
 // flat battery.
 
 #include <chrono>
-#include <cmath>
 #include <cstdlib>
 #include <memory>
+#include <numbers>
 #include <string>
 
 #include "geometry_msgs/msg/twist.hpp"
-#include "pico_bridge/drive_protocol.hpp"
+#include "pico_bridge/drive_kinematics.hpp"
 #include "pico_bridge/gyro_bias.hpp"
+#include "pico_bridge/pico_protocol.hpp"
 #include "pico_bridge/serial_port.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
@@ -18,30 +19,25 @@
 
 namespace pico_bridge {
 
-constexpr double kRadiansPerRev = 2.0 * M_PI;
-constexpr double kDegreesPerRadian = 180.0 / M_PI;
-constexpr size_t kGyroBiasSamples = 50;        // 1 s at 50 Hz
+constexpr double kRadiansPerRev = 2.0 * std::numbers::pi;
+constexpr double kDegreesPerRadian = 180.0 / std::numbers::pi;
+constexpr size_t kGyroBiasSamples = 50;            // 1 s at 50 Hz
 constexpr double kGyroBiasMaxSpreadRadps = 0.035;  // 2 deg/s
 constexpr double kImuSilenceS = 1.0;
-
-template <typename T>
-struct LeftRight {
-  T left;
-  T right;
-};
 
 class PicoBridgeNode : public rclcpp::Node {
  public:
   PicoBridgeNode()
       : Node("pico_bridge"),
         port_path_(declare_parameter("port", "/dev/pico")),
-        geometry_{declare_parameter("wheel_diameter_m", 0.068),
-                  declare_parameter("wheel_separation_m", 0.180)},
-        is_left_first_motor_(declare_parameter("left_motor", "first") ==
-                             std::string("first")),
-        left_sign_(declare_parameter("left_reversed", false) ? -1.0 : 1.0),
-        right_sign_(declare_parameter("right_reversed", true) ? -1.0 : 1.0),
-        ticks_per_rev_(declare_parameter("ticks_per_rev", 2473.0)),
+        // No defaults: robot_description's config/robot.yaml is the one copy.
+        geometry_{declare_parameter<double>("wheel_diameter_m"),
+                  declare_parameter<double>("wheel_separation_m")},
+        motors_{.is_left_first_motor = declare_parameter<std::string>(
+                                           "left_motor", "first") == "first",
+                .is_left_reversed = declare_parameter("left_reversed", false),
+                .is_right_reversed = declare_parameter("right_reversed", true)},
+        ticks_per_rev_(declare_parameter<double>("ticks_per_rev")),
         cmd_vel_timeout_(rclcpp::Duration::from_seconds(
             declare_parameter("cmd_vel_timeout_s", 1.0))),
         imu_frame_id_(declare_parameter("imu_frame_id", "imu_link")),
@@ -149,8 +145,7 @@ class PicoBridgeNode : public rclcpp::Node {
   }
 
   void warn_once_if_imu_silent() {
-    if (is_imu_silent_ ||
-        (now() - last_imu_time_).seconds() <= kImuSilenceS) {
+    if (is_imu_silent_ || (now() - last_imu_time_).seconds() <= kImuSilenceS) {
       return;
     }
     is_imu_silent_ = true;
@@ -180,32 +175,24 @@ class PicoBridgeNode : public rclcpp::Node {
         now() - last_cmd_vel_time_ <= cmd_vel_timeout_;
     const geometry_msgs::msg::Twist twist =
         is_cmd_vel_fresh ? last_cmd_vel_ : geometry_msgs::msg::Twist();
-    const WheelRps wheels =
-        wheel_rps_from_twist(twist.linear.x, twist.angular.z, geometry_);
-    const double left = wheels.left * left_sign_;
-    const double right = wheels.right * right_sign_;
-    return is_left_first_motor_ ? format_command(left, right)
-                                : format_command(right, left);
-  }
-
-  template <typename T>
-  LeftRight<T> to_left_right(T first, T second) const {
-    return is_left_first_motor_ ? LeftRight<T>{first, second}
-                                : LeftRight<T>{second, first};
+    const MotorPair motors = motors_.to_motors(
+        wheel_rps_from_twist(twist.linear.x, twist.angular.z, geometry_));
+    return format_command(motors.first, motors.second);
   }
 
   void publish_status(const PicoStatus& status) {
-    const auto counts = to_left_right(status.first_count, status.second_count);
-    const auto rps = to_left_right(status.first_rps, status.second_rps);
+    const WheelPair counts =
+        motors_.to_wheels({static_cast<double>(status.first_count),
+                           static_cast<double>(status.second_count)});
+    const WheelPair rps =
+        motors_.to_wheels({status.first_rps, status.second_rps});
 
     sensor_msgs::msg::JointState joints;
     joints.header.stamp = now();
     joints.name = {"left_wheel_joint", "right_wheel_joint"};
-    joints.position = {
-        left_sign_ * counts.left / ticks_per_rev_ * kRadiansPerRev,
-        right_sign_ * counts.right / ticks_per_rev_ * kRadiansPerRev};
-    joints.velocity = {left_sign_ * rps.left * kRadiansPerRev,
-                       right_sign_ * rps.right * kRadiansPerRev};
+    joints.position = {counts.left / ticks_per_rev_ * kRadiansPerRev,
+                       counts.right / ticks_per_rev_ * kRadiansPerRev};
+    joints.velocity = {rps.left * kRadiansPerRev, rps.right * kRadiansPerRev};
     joint_state_publisher_->publish(joints);
 
     sensor_msgs::msg::BatteryState battery;
@@ -227,9 +214,7 @@ class PicoBridgeNode : public rclcpp::Node {
 
   std::string port_path_;
   DriveGeometry geometry_;
-  bool is_left_first_motor_;
-  double left_sign_;
-  double right_sign_;
+  MotorMapping motors_;
   double ticks_per_rev_;
   rclcpp::Duration cmd_vel_timeout_;
   std::string imu_frame_id_;

@@ -1,0 +1,7 @@
+# Drive geometry, the one copy: read by pico_bridge, wheel_odometry, the URDF
+# and, for ticks_per_rev, the firmware build.
+/**:
+  ros__parameters:
+    wheel_diameter_m: 0.068
+    wheel_separation_m: 0.180
+    ticks_per_rev: 2473.0

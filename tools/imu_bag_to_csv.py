@@ -7,23 +7,14 @@ in the IMU's own axes, gyro offset already removed by the bridge.
 import csv
 import sys
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import Imu
+from bag_reader import bag_messages
 
 if len(sys.argv) != 3:
     sys.exit(__doc__)
 bag_path, out_path = sys.argv[1], sys.argv[2]
 
-reader = rosbag2_py.SequentialReader()
-reader.open(rosbag2_py.StorageOptions(uri=bag_path),
-            rosbag2_py.ConverterOptions("cdr", "cdr"))
-reader.set_filter(rosbag2_py.StorageFilter(topics=["/imu/data_raw"]))
-
 rows = []
-while reader.has_next():
-    _, data, _ = reader.read_next()
-    imu = deserialize_message(data, Imu)
+for _, imu in bag_messages(bag_path, ["/imu/data_raw"]):
     stamp = imu.header.stamp.sec + imu.header.stamp.nanosec * 1e-9
     a, g = imu.linear_acceleration, imu.angular_velocity
     rows.append([stamp, a.x, a.y, a.z, g.x, g.y, g.z])

@@ -5,21 +5,22 @@
 #include <cstdio>
 #include <optional>
 
-#include "bench_test.h"
-#include "drive_command.h"
-#include "drivetrain.h"
-#include "encoder.h"
+#include "bench/imu_test.h"
+#include "bench/mode.h"
+#include "bench/motor_tests.h"
+#include "devices/encoder.h"
+#include "devices/imu.h"
+#include "devices/motor.h"
+#include "drive/drive_command.h"
+#include "drive/drivetrain.h"
+#include "drive/wheel.h"
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
-#include "imu.h"
-#include "imu_test.h"
-#include "motor.h"
 #include "periodic_timer.h"
 #include "pico/cyw43_arch.h"
 #include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
-#include "wheel.h"
 
 namespace {
 
@@ -46,27 +47,27 @@ constexpr int64_t kCommandTimeoutMs = 250;
 constexpr uint32_t kStatusPrintIntervalMs = 200;
 constexpr uint32_t kLedIntervalMs = 500;
 
+// Same for both wheels; CMakeLists.txt reads it from robot.yaml.
+constexpr float kTicksPerRev = ROBOT_TICKS_PER_REV;
+
+constexpr Wheel::Config wheel_config(const MotorGains& gains) {
+  return {.ticks_per_rev = kTicksPerRev,
+          .max_accel = 5.0f,  // 0 to 1.0 rev/s in 0.2 s
+          .max_power = Motor::kMaxPower,
+          .gains = gains};
+}
+
 // Gains from results/sysid/2026-11-09-run01 (see results/README.md).
-constexpr Wheel::Config kFirstWheelConfig = {
-    .ticks_per_rev = 2473.0f,
-    .max_accel = 5.0f,  // 0 to 1.0 rev/s in 0.2 s
-    .max_power = Motor::kMaxPower,
-    .gains = {.k_s = 0.012f,
-              .k_v = 0.345f,
-              .k_a = 0.0174f,
-              .k_p = 0.277f,
-              .k_i = 5.48f},
-};
-constexpr Wheel::Config kSecondWheelConfig = {
-    .ticks_per_rev = 2473.0f,
-    .max_accel = 5.0f,
-    .max_power = Motor::kMaxPower,
-    .gains = {.k_s = 0.010f,
-              .k_v = 0.349f,
-              .k_a = 0.0171f,
-              .k_p = 0.272f,
-              .k_i = 5.54f},
-};
+constexpr Wheel::Config kFirstWheelConfig = wheel_config({.k_s = 0.012f,
+                                                          .k_v = 0.345f,
+                                                          .k_a = 0.0174f,
+                                                          .k_p = 0.277f,
+                                                          .k_i = 5.48f});
+constexpr Wheel::Config kSecondWheelConfig = wheel_config({.k_s = 0.010f,
+                                                           .k_v = 0.349f,
+                                                           .k_a = 0.0171f,
+                                                           .k_p = 0.272f,
+                                                           .k_i = 5.54f});
 
 [[noreturn]] void halt(const char* reason) {
   while (true) {
@@ -118,9 +119,9 @@ void print_imu_for_pi(int64_t uptime_ms, const ImuReading& reading) {
 
 void print_status_for_pi(int64_t uptime_ms, const PeriodReport& report) {
   printf("S,%lld,%ld,%ld,%.3f,%.3f,%.2f,%s\n", uptime_ms,
-         static_cast<long>(report.first_count),
-         static_cast<long>(report.second_count), report.first_rps,
-         report.second_rps, report.battery_volts,
+         static_cast<long>(report.first.count),
+         static_cast<long>(report.second.count), report.first.speed_rps,
+         report.second.speed_rps, report.battery_volts,
          stop_reason_name(report.stop_reason));
 }
 
@@ -171,9 +172,9 @@ int main() {
 
   DriveCommandReader command_reader;
   LatestCommand latest_command(kCommandTimeoutMs);
-  std::optional<BenchTest> bench_test;
+  std::optional<MotorTest> motor_test;
   if (kMode != Mode::kDrive) {
-    bench_test.emplace(kMode);
+    motor_test.emplace(kMode);
   }
   bool has_serial_connected = false;
 
@@ -198,33 +199,33 @@ int main() {
       if (imu_error) {
         printf("WARNING: %s\n", imu_error);
       }
-      if (bench_test) {
-        bench_test->start_countdown(now);
+      if (motor_test) {
+        motor_test->start_countdown(now);
       }
     }
 
-    if (!bench_test) {
+    if (!motor_test) {
       read_commands(command_reader, latest_command, uptime_ms);
     }
 
     if (const auto period_seconds = control_timer.tick(now)) {
       const DriveCommand command = latest_command.current(uptime_ms);
-      const Target target = bench_test ? bench_test->target(now)
+      const Target target = motor_test ? motor_test->target(now)
                                        : Target{.is_open_loop_power = false,
                                                 .first = command.first_rps,
                                                 .second = command.second_rps};
       last_report = drivetrain.run_period(
           target, read_hardware(first_encoder, second_encoder),
           *period_seconds);
-      first_motor.set_power(last_report.first_power);
-      second_motor.set_power(last_report.second_power);
+      first_motor.set_power(last_report.first.power);
+      second_motor.set_power(last_report.second.power);
 
       // Repeated, so a bridge that connects late still sees it.
       if (last_report.should_pi_shut_down) {
         printf("SHUTDOWN: battery critically low\n");
       }
-      if (bench_test) {
-        bench_test->log(now, last_report);
+      if (motor_test) {
+        motor_test->log(now, last_report);
       } else {
         print_status_for_pi(uptime_ms, last_report);
         if (!imu_error) {
@@ -235,8 +236,8 @@ int main() {
       }
     }
 
-    if (bench_test && status_timer.tick(now)) {
-      bench_test->print_idle_status(last_report);
+    if (motor_test && status_timer.tick(now)) {
+      motor_test->print_idle_status(last_report);
     }
 
     if (led_timer.tick(now)) {

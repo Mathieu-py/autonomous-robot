@@ -1,4 +1,4 @@
-#include "drive_command.h"
+#include "drive/drive_command.h"
 
 #include <optional>
 #include <string>
@@ -46,12 +46,20 @@ void test_recovers_after_an_overlong_line() {
   CHECK(feed_all(reader, "V 0.1 0.1\n"));
 }
 
-void test_clamps_speeds() {
+void test_limits_speeds() {
   DriveCommandReader reader;
   const auto command = feed_all(reader, "V 9 -9\n");
   CHECK(command.has_value());
   CHECK_NEAR(command->first_rps, DriveCommandReader::kMaxRps, 1e-6);
   CHECK_NEAR(command->second_rps, -DriveCommandReader::kMaxRps, 1e-6);
+}
+
+void test_limiting_keeps_the_turn() {
+  DriveCommandReader reader;
+  const auto command = feed_all(reader, "V 5 2.5\n");
+  CHECK(command.has_value());
+  CHECK_NEAR(command->first_rps, 2.5f, 1e-6);
+  CHECK_NEAR(command->second_rps, 1.25f, 1e-6);
 }
 
 void test_timeout_zeroes_a_stale_command() {
@@ -70,7 +78,8 @@ int main() {
   test_accepts_windows_line_endings();
   test_rejects_malformed_lines();
   test_recovers_after_an_overlong_line();
-  test_clamps_speeds();
+  test_limits_speeds();
+  test_limiting_keeps_the_turn();
   test_timeout_zeroes_a_stale_command();
   return report("drive_command");
 }

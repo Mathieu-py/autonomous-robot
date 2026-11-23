@@ -15,27 +15,38 @@ pico_sdk_init()
 
 add_executable(robot_firmware
   src/main.cpp
-  src/motor.cpp
-  src/encoder.cpp
-  src/wheel_speed.cpp
-  src/speed_controller.cpp
-  src/wheel.cpp
-  src/drivetrain.cpp
-  src/drive_command.cpp
-  src/safety.cpp
-  src/phase_sequence.cpp
-  src/bench_test.cpp
-  src/imu.cpp
-  src/imu_reading.cpp
-  src/imu_test.cpp
+  src/bench/imu_test.cpp
+  src/bench/mode.cpp
+  src/bench/motor_tests.cpp
+  src/bench/phase_sequence.cpp
+  src/devices/encoder.cpp
+  src/devices/imu.cpp
+  src/devices/imu_reading.cpp
+  src/devices/motor.cpp
+  src/drive/drive_command.cpp
+  src/drive/drivetrain.cpp
+  src/drive/safety.cpp
+  src/drive/speed_controller.cpp
+  src/drive/wheel.cpp
 )
+target_include_directories(robot_firmware PRIVATE src)
 
 # Encoder counting program from Raspberry Pi's pico-examples (BSD-3-Clause).
-pico_generate_pio_header(robot_firmware ${CMAKE_CURRENT_LIST_DIR}/src/quadrature_encoder.pio)
+pico_generate_pio_header(robot_firmware ${CMAKE_CURRENT_LIST_DIR}/src/devices/quadrature_encoder.pio)
 
 # The Pico 2 W's LED is wired through its wireless chip, hence cyw43.
 target_link_libraries(robot_firmware pico_stdlib hardware_adc hardware_i2c hardware_pio
   hardware_pwm hardware_watchdog pico_cyw43_arch_none)
+
+# Ticks per wheel turn, from the one copy shared with ROS; edits re-run CMake.
+set(ROBOT_YAML ${CMAKE_CURRENT_LIST_DIR}/../ros/robot_description/config/robot.yaml)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ROBOT_YAML})
+file(STRINGS ${ROBOT_YAML} TICKS_LINE REGEX "^ *ticks_per_rev:")
+string(REGEX MATCH "[0-9]+(\\.[0-9]+)?" TICKS_PER_REV "${TICKS_LINE}")
+if(NOT TICKS_PER_REV)
+  message(FATAL_ERROR "No ticks_per_rev in ${ROBOT_YAML}")
+endif()
+target_compile_definitions(robot_firmware PRIVATE ROBOT_TICKS_PER_REV=${TICKS_PER_REV})
 
 # Drop unread serial output instead of blocking the loop (and the watchdog).
 target_compile_definitions(robot_firmware PRIVATE PICO_STDIO_USB_STDOUT_TIMEOUT_US=0)
