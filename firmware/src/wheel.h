@@ -5,8 +5,7 @@
 #include "speed_controller.h"
 #include "wheel_speed.h"
 
-// One side of the drive's speed loop: its measured speed, setpoint ramp and
-// controller. main.cpp passes the encoder count in and applies the power.
+// One wheel's speed loop: measured speed, setpoint ramp and controller.
 class Wheel {
  public:
   struct Config {

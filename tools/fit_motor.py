@@ -4,17 +4,9 @@ Usage: python3 tools/fit_motor.py <log.csv> <chart.png>
 
 Prints the fit and also saves it next to the chart, as <chart>.txt.
 
-The log comes from the firmware's identification test (kMode = Mode::kSysIdTest):
-columns t_ms, phase, power, first_speed, second_speed. Phases 0 and 4 are slow
-power ramps, 2 and 6 are power steps, the rest are pauses.
-
-Model, as in WPILib SysId: power = kS * sign(v) + kV * v + kA * a
-  - kS, kV: least-squares fit to the slow ramps, where acceleration is tiny.
-  - kA: from the step response's time constant, tau = kA / kV, fitted as a
-    first-order response with a dead time theta.
-
-PI gains use IMC (lambda) tuning for that first-order-plus-dead-time model:
-  kP = kA / (lambda + delay),  kI = kV / (lambda + delay)
+Model, as in WPILib SysId: power = kS * sign(v) + kV * v + kA * a. kS and kV
+come from the slow ramps, kA from the steps' time constant; PI gains from IMC
+(lambda) tuning of that first-order-plus-dead-time model.
 """
 import sys
 

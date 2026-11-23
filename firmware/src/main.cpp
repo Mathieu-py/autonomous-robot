@@ -87,14 +87,13 @@ Readings read_hardware(const Encoder& first, const Encoder& second) {
   return {
       .first_count = first.count(),
       .second_count = second.count(),
-      // Switches connect to ground, so a pressed switch reads low.
+      // Pressed switches read low.
       .is_bumper_pressed =
           !gpio_get(kFirstBumperPin) || !gpio_get(kSecondBumperPin),
       .battery_volts = static_cast<float>(adc_read()) * kBatteryVoltsPerCount,
   };
 }
 
-// Reads whatever serial input has arrived, without waiting.
 void read_commands(DriveCommandReader& reader, LatestCommand& latest,
                    int64_t now_ms) {
   int c;
@@ -105,7 +104,6 @@ void read_commands(DriveCommandReader& reader, LatestCommand& latest,
   }
 }
 
-// The status line pico_bridge reads, every control period.
 void print_status_for_pi(int64_t uptime_ms, const PeriodReport& report) {
   printf("S,%lld,%ld,%ld,%.3f,%.3f,%.2f,%s\n", uptime_ms,
          static_cast<long>(report.first_count),
@@ -119,7 +117,7 @@ void print_status_for_pi(int64_t uptime_ms, const PeriodReport& report) {
 int main() {
   stdio_init_all();
 
-  // First, so the motor pins are held low (stopped) during startup.
+  // First, so the motor pins stay low during startup.
   const Motor first_motor(kFirstMotorPinA);
   const Motor second_motor(kSecondMotorPinA);
 
@@ -127,13 +125,11 @@ int main() {
   setup_bumper(kSecondBumperPin);
   setup_battery_adc();
 
-  // Before the encoders: the wireless chip (LED) also claims a PIO state
-  // machine.
+  // Before the encoders: the wireless chip also claims a PIO state machine.
   if (cyw43_arch_init() != 0) {
     halt("failed to start the wireless chip, which drives the LED");
   }
-  // The first LED write takes about 0.5 s (the wireless chip finishes starting
-  // up), so do it here rather than in the watchdog-guarded loop.
+  // The first LED write takes ~0.5 s, too long for the watchdog.
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
 
   Encoder first_encoder;
@@ -144,15 +140,13 @@ int main() {
     halt(error);
   }
 
-  // Last, once startup is done: a hang of more than 100 ms reboots the Pico,
-  // which comes back with the motors stopped.
+  // Last: a hang over 100 ms now reboots the Pico, motors stopped.
   const bool was_rebooted_by_watchdog = watchdog_caused_reboot();
   watchdog_enable(kWatchdogTimeoutMs, true);
 
   Drivetrain drivetrain(Wheel(kFirstWheelConfig, first_encoder.count()),
                         Wheel(kSecondWheelConfig, second_encoder.count()));
   PeriodReport last_report{};
-  bool was_pi_shutdown_requested = false;
 
   DriveCommandReader command_reader;
   LatestCommand latest_command(kCommandTimeoutMs);
@@ -173,8 +167,7 @@ int main() {
     const absolute_time_t now = get_absolute_time();
     const int64_t uptime_ms = absolute_time_diff_us(boot_time, now) / 1000;
 
-    // On first connection: report a watchdog reboot, and start a test's
-    // countdown so the log captures it from the start.
+    // First connection: report a watchdog reboot, start a test's countdown.
     if (!has_serial_connected && stdio_usb_connected()) {
       has_serial_connected = true;
       if (was_rebooted_by_watchdog) {
@@ -201,8 +194,8 @@ int main() {
       first_motor.set_power(last_report.first_power);
       second_motor.set_power(last_report.second_power);
 
-      if (last_report.should_pi_shut_down && !was_pi_shutdown_requested) {
-        was_pi_shutdown_requested = true;
+      // Repeated, so a bridge that connects late still sees it.
+      if (last_report.should_pi_shut_down) {
         printf("SHUTDOWN: battery critically low\n");
       }
       if (bench_test) {

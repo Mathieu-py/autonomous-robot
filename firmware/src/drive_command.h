@@ -4,15 +4,13 @@
 #include <cstdint>
 #include <optional>
 
-// Wheel speed commands from the Pi over USB serial, as text lines:
-// "V <first_rps> <second_rps>\n".
+// Wheel speed commands from the Pi: "V <first_rps> <second_rps>\n".
 
 struct DriveCommand {
   float first_rps;
   float second_rps;
 };
 
-// Assembles characters into lines and parses each complete one.
 class DriveCommandReader {
  public:
   static constexpr float kMaxRps = 2.5f;

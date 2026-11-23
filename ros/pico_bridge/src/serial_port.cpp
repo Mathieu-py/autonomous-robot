@@ -30,7 +30,7 @@ SerialPort::SerialPort(const std::string& path)
   tcsetattr(fd_, TCSANOW, &settings);
   tcflush(fd_, TCIOFLUSH);
 
-  // Exclusive, so a second bridge can't open the port and split the data.
+  // Exclusive, so a second bridge can't split the data.
   if (ioctl(fd_, TIOCEXCL) != 0) {
     close(fd_);
     throw std::runtime_error("can't get exclusive use of " + path);
@@ -44,8 +44,11 @@ SerialPort::SerialPort(const std::string& path)
 SerialPort::~SerialPort() { close(fd_); }
 
 bool SerialPort::write_text(const std::string& text) {
-  return write(fd_, text.data(), text.size()) ==
-         static_cast<ssize_t>(text.size());
+  if (write(fd_, text.data(), text.size()) >= 0) {
+    return true;
+  }
+  // A full buffer (Pico not reading, e.g. a bench test) isn't a lost link.
+  return errno == EAGAIN || errno == EWOULDBLOCK;
 }
 
 bool SerialPort::read_available(std::string& buffer) {
@@ -57,7 +60,7 @@ bool SerialPort::read_available(std::string& buffer) {
     } else if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
       return true;  // nothing more to read for now
     } else {
-      return false;  // 0 is a hang-up: the Pico was unplugged or reset
+      return false;  // 0 = hang-up: unplugged or reset
     }
   }
 }

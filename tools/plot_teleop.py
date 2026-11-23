@@ -4,11 +4,8 @@ speeds, battery voltage, and the bridge node's log messages.
 Usage (with ROS 2 sourced):
   python3 tools/plot_teleop.py <bag dir> <output.csv> <output.png> "<title>"
 
-Reads messages in the order they were written, and times them by counting
-/joint_states (the Pico reports exactly every 20 ms): WSL's clock steps back
-about a second every 30 s, which scrambles anything sorted by timestamp.
-Commanded wheel speeds are rebuilt from /cmd_vel the way pico_bridge does it:
-the last twist holds for cmd_vel_timeout_s, then drops to zero.
+Times messages by counting /joint_states (every 20 ms), not by timestamp: WSL's
+clock steps back about a second every 30 s.
 """
 import csv
 import math

@@ -6,6 +6,7 @@
 
 using pico_bridge::DriveGeometry;
 using pico_bridge::format_command;
+using pico_bridge::is_shutdown_request;
 using pico_bridge::parse_status_line;
 using pico_bridge::wheel_rps_from_twist;
 
@@ -57,4 +58,11 @@ TEST(ParseStatusLine, RejectsOtherLines) {
   EXPECT_FALSE(parse_status_line("SHUTDOWN: battery critically low"));
   EXPECT_FALSE(parse_status_line("S,1,2,3"));
   EXPECT_FALSE(parse_status_line("first: 0 (0.00 rev/s)"));
+}
+
+TEST(IsShutdownRequest, RecognisesOnlyThePicosShutdownLine) {
+  EXPECT_TRUE(is_shutdown_request("SHUTDOWN: battery critically low"));
+  EXPECT_FALSE(is_shutdown_request("S,1,0,0,0.000,0.000,10.10,low battery"));
+  EXPECT_FALSE(
+      is_shutdown_request("Rebooted by the watchdog: the firmware had hung"));
 }

@@ -44,8 +44,7 @@ float SpeedController::power_for_next_period(const RampedSetpoint& setpoint,
   const float power =
       feedforward + gains_.k_p * error + gains_.k_i * new_integral;
 
-  // Anti-windup: while saturated, keep only an integral that pulls the power
-  // back toward the limit (error opposite in sign to the power).
+  // Anti-windup: while saturated, the integral may only unwind.
   const bool is_saturated = std::fabs(power) >= max_power_;
   const bool is_unwinding = (error > 0.0f) != (power > 0.0f);
   if (!is_saturated || is_unwinding) {

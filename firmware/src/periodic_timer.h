@@ -5,8 +5,7 @@
 
 #include "pico/time.h"
 
-// Ticks every period_ms. If the loop falls behind it skips ahead rather than
-// ticking back-to-back, since tiny gaps would make the speed readings jumpy.
+// Skips missed ticks rather than bunching them (jumpy speed readings).
 class PeriodicTimer {
  public:
   PeriodicTimer(absolute_time_t start, uint32_t period_ms)

@@ -34,8 +34,7 @@ pico_generate_pio_header(robot_firmware ${CMAKE_CURRENT_LIST_DIR}/src/quadrature
 target_link_libraries(robot_firmware pico_stdlib hardware_adc hardware_pio hardware_pwm
   hardware_watchdog pico_cyw43_arch_none)
 
-# Drop serial output when the laptop isn't reading, instead of blocking the
-# control loop for up to 500 ms (and tripping the 100 ms watchdog).
+# Drop unread serial output instead of blocking the loop (and the watchdog).
 target_compile_definitions(robot_firmware PRIVATE PICO_STDIO_USB_STDOUT_TIMEOUT_US=0)
 
 pico_enable_stdio_usb(robot_firmware 1)

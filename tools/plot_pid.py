@@ -45,8 +45,7 @@ ax_power.plot(t, second_power, color=ORANGE, linewidth=2)
 ax_power.set_ylabel("Motor power (PWM fraction)")
 ax_power.set_xlabel("Time since test start (s)")
 
-# Direct labels at the end of each power line, the higher line's label on
-# top so they never swap or overlap.
+# Higher line's label on top, so the labels never overlap.
 upper, lower = (("First", first_power[-1]), ("Second", second_power[-1]))
 if lower[1] > upper[1]:
     upper, lower = lower, upper

@@ -7,8 +7,7 @@
 #include <sstream>
 #include <string>
 
-// Pure helpers for the Pico link: differential-drive maths and the text
-// protocol in firmware/src/drive_command.h and main.cpp (drive mode).
+// Pure helpers: drive maths and the Pico's text protocol.
 namespace pico_bridge {
 
 struct DriveGeometry {
@@ -69,6 +68,11 @@ inline std::optional<PicoStatus> parse_status_line(const std::string& line) {
     return std::nullopt;
   }
   return status;
+}
+
+// Repeated by the Pico while the battery is critically low.
+inline bool is_shutdown_request(const std::string& line) {
+  return line.rfind("SHUTDOWN", 0) == 0;
 }
 
 }  // namespace pico_bridge

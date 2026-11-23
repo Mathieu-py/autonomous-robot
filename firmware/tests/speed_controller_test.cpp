@@ -10,9 +10,7 @@ constexpr float kPeriod = 0.02f;
 constexpr MotorGains kGains = {
     .k_s = 0.012f, .k_v = 0.345f, .k_a = 0.0174f, .k_p = 0.277f, .k_i = 5.48f};
 
-// The first motor's identified model (results/sysid/2026-11-09-run01),
-// stepped finely within each control period. Returns the speed averaged over
-// the period, as the encoder reading is.
+// Simulates the first motor's model (sysid run01): mean speed per period.
 class SimulatedMotor {
  public:
   float run_period(float power) {

@@ -1,5 +1,7 @@
 #include "safety.h"
 
+#include <initializer_list>
+
 #include "check.h"
 
 namespace {
@@ -72,6 +74,28 @@ void test_sustained_low_battery_stops_and_warns_the_pi() {
   CHECK(safety.should_pi_shut_down());
 }
 
+void test_no_battery_does_not_ask_the_pi_to_shut_down() {
+  SafetyMonitor safety;
+  SafetyInputs inputs = running_normally();
+  inputs.battery_volts = 0.0f;
+  CHECK(run_for(safety, inputs, 5.0f) == StopReason::kLowBattery);
+  CHECK(!safety.should_pi_shut_down());
+}
+
+void test_plugging_the_battery_in_or_out_does_not_ask_the_pi_to_shut_down() {
+  SafetyMonitor safety;
+  SafetyInputs inputs = running_normally();
+  bool was_asked = false;
+  for (float volts : {0.0f, 12.0f, 0.0f}) {
+    inputs.battery_volts = volts;
+    for (float t = 0.0f; t < 5.0f; t += kPeriod) {
+      safety.update(inputs);
+      was_asked = was_asked || safety.should_pi_shut_down();
+    }
+  }
+  CHECK(!was_asked);
+}
+
 void test_low_battery_only_clears_once_recharged() {
   SafetyMonitor safety;
   SafetyInputs inputs = running_normally();
@@ -113,6 +137,8 @@ int main() {
   test_bumper_held_down_blocks_clearing();
   test_short_battery_dip_does_not_stop();
   test_sustained_low_battery_stops_and_warns_the_pi();
+  test_no_battery_does_not_ask_the_pi_to_shut_down();
+  test_plugging_the_battery_in_or_out_does_not_ask_the_pi_to_shut_down();
   test_low_battery_only_clears_once_recharged();
   test_stall_stops_only_after_half_a_second();
   test_wheel_that_starts_moving_resets_the_stall_timer();

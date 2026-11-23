@@ -47,7 +47,7 @@ echo "source ~/robot_ws/install/setup.bash" >> ~/.bashrc
 
 The firmware folder is skipped; it's built on the laptop with the Pico SDK and flashed by copying `firmware/build/robot_firmware.uf2` onto the Pico in BOOTSEL mode.
 
-**Check:** 7 tests, 0 failures.
+**Check:** 8 tests, 0 failures.
 
 ## 3. The Pico's USB link
 
@@ -62,7 +62,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 The udev rule names the Pico `/dev/pico` whatever `ttyACM` number it gets: on a replug it came up as `ttyACM1`. `2e8a:0009` is the Pico SDK's USB serial on the RP2350. `/dev/pico` is the bridge's default port.
 
-Run the bridge:
+Run the bridge (once section 6 is done, it starts at boot instead):
 
 ```bash
 ros2 run pico_bridge pico_bridge_node
@@ -106,3 +106,60 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
 **Checked 10 November 2026** with the wheels lifted on the 12 V bench supply: both wheels followed every key, and stopping the bridge mid-drive stopped them through the Pico's 250 ms command timeout.
+
+## 6. Low-battery power-off and starting at boot
+
+At 10.2 V (3.4 V per cell) the Pico repeats `SHUTDOWN: battery critically low` until the bridge powers the Pi off. Otherwise the converter keeps the Pi running down to about 8 V, which damages the LiPo. The Pico doesn't ask when it reads no battery at all, so the Pi can still run on its own supply.
+
+Let the bridge power off the Pi, and nothing else, without a password:
+
+```bash
+echo 'msevestre ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff' | sudo tee /etc/sudoers.d/robot-poweroff
+sudo chmod 440 /etc/sudoers.d/robot-poweroff
+sudo visudo -c
+```
+
+Make a shut-down Pi 5 draw almost nothing; by default it still draws about 1.3 W from the battery:
+
+```bash
+sudo rpi-eeprom-config --edit        # add the line POWER_OFF_ON_HALT=1, save
+```
+
+(`sudo apt install rpi-eeprom` if the command is missing.) It takes effect at the next boot. After a power-off, unplug the battery: the converter and the battery divider still draw a little.
+
+Start the bridge at boot, and again if it exits, as it does when the Pico is replugged or reboots:
+
+```bash
+sudo cp ~/robot_ws/src/autonomous-robot/ros/pico_bridge/systemd/pico-bridge.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pico-bridge
+journalctl -u pico-bridge -f          # its log
+```
+
+To run the bridge by hand instead, `sudo systemctl stop pico-bridge` first: only one bridge can open the Pico's port.
+
+**Check:**
+
+1. `sudo -n /usr/bin/systemctl poweroff` powers the Pi off without asking for a password.
+2. After a reboot, the laptop sees `/joint_states` at 50 Hz without anything started on the Pi.
+3. End to end: with the battery unplugged, feed the XT60 from the bench supply and turn it down to 10.0 V. Within a few seconds the Pi powers off, and the log's last line reads `Pico: SHUTDOWN: battery critically low. Powering off the Pi`.
+
+## 7. Reflashing the Pico from the Pi
+
+The Pico's BOOTSEL button is under the upper deck, but the firmware reboots into BOOTSEL when its serial port is set to 1200 baud. Build on the laptop, then copy the firmware over from the repo folder in WSL (use `10.0.0.225` if `robot-pi.local` doesn't resolve):
+
+```bash
+scp firmware/build/robot_firmware.uf2 msevestre@robot-pi.local:~
+```
+
+On the Pi:
+
+```bash
+sudo systemctl stop pico-bridge
+stty -F /dev/pico 1200                # the Pico reboots as a USB drive named RP2350
+sleep 3
+sudo mount -L RP2350 /mnt
+sudo cp ~/robot_firmware.uf2 /mnt && sync
+sudo umount -l /mnt                   # the Pico has already rebooted into the new firmware
+sudo systemctl start pico-bridge
+```

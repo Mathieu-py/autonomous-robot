@@ -9,8 +9,7 @@ class Encoder {
  public:
   int32_t count() const;
 
-  // Starts both encoders on one PIO block (B pin = A + 1), after
-  // cyw43_arch_init(). Returns nullptr on success, or what went wrong.
+  // After cyw43_arch_init(); B pin = A + 1. Returns nullptr or the error.
   static const char* start_pair(uint first_pin_a, uint second_pin_a,
                                 Encoder& first, Encoder& second);
 

@@ -4,11 +4,14 @@
 
 namespace {
 
-// 3S LiPo: stop the motors at 3.5 V per cell, ask the Pi to shut down at
-// 3.4 V, and only re-arm once the pack reads above 3.67 V (recharged).
+// 3S LiPo, per cell: stop at 3.5 V, Pi off at 3.4 V, re-arm above 3.67 V.
 constexpr float kLowBatteryVolts = 10.5f;
 constexpr float kPiShutdownVolts = 10.2f;
 constexpr float kRecoveredBatteryVolts = 11.0f;
+// Below this there's no battery (Pi on its own supply): don't shut it down.
+constexpr float kNoBatteryVolts = 6.0f;
+// Plugging a battery in or out crosses the shutdown band for ~1 s.
+constexpr float kPiShutdownSeconds = 3.0f;
 
 // Averages out the dip when the motors start.
 constexpr float kBatteryFilterSeconds = 1.0f;
@@ -85,7 +88,11 @@ void SafetyMonitor::filter_battery(float battery_volts, float period_seconds) {
   } else if (filtered_battery_volts_ > kRecoveredBatteryVolts) {
     is_battery_low_ = false;
   }
-  should_pi_shut_down_ = filtered_battery_volts_ < kPiShutdownVolts;
+  const bool is_critically_low = filtered_battery_volts_ > kNoBatteryVolts &&
+                                 filtered_battery_volts_ < kPiShutdownVolts;
+  critically_low_seconds_ =
+      is_critically_low ? critically_low_seconds_ + period_seconds : 0.0f;
+  should_pi_shut_down_ = critically_low_seconds_ >= kPiShutdownSeconds;
 }
 
 void SafetyMonitor::update_stall_timers(const SafetyInputs& inputs) {

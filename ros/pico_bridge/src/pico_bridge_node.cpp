@@ -1,8 +1,8 @@
-// Sends /cmd_vel to the Pico as wheel speeds, and publishes the wheel states
-// and battery voltage the Pico reports.
+// Bridges /cmd_vel and the Pico's status; powers the Pi off on a flat battery.
 
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <memory>
 #include <string>
 
@@ -55,25 +55,48 @@ class PicoBridgeNode : public rclcpp::Node {
   }
 
  private:
-  // Every 20 ms: send the current command, then handle what the Pico sent.
+  // Every 20 ms: send the command, then handle the Pico's lines.
   void exchange_with_pico() {
     if (!serial_.write_text(command_for_pico()) ||
         !serial_.read_available(received_)) {
-      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
-                            "Lost the serial link to the Pico");
+      // A reconnected Pico is a new device: exit and let systemd restart us.
+      RCLCPP_FATAL(get_logger(), "Lost the serial link to the Pico; exiting");
+      rclcpp::shutdown();
       return;
     }
     size_t line_end;
     while ((line_end = received_.find('\n')) != std::string::npos) {
-      const std::string line = received_.substr(0, line_end);
+      std::string line = received_.substr(0, line_end);
       received_.erase(0, line_end + 1);
+      // journalctl shows lines containing \r as "[blob data]".
+      if (!line.empty() && line.back() == '\r') {
+        line.pop_back();
+      }
       if (const auto status = parse_status_line(line)) {
         publish_status(*status);
-      } else if (!line.empty() && line != "\r") {
-        // Anything else from the Pico is a one-off message, e.g. a low-battery
-        // shutdown request or a watchdog reboot.
+      } else if (is_shutdown_request(line)) {
+        power_off_once(line);
+      } else if (!line.empty()) {
+        // One-off messages, e.g. a watchdog reboot.
         RCLCPP_WARN(get_logger(), "Pico: %s", line.c_str());
       }
+    }
+  }
+
+  void power_off_once(const std::string& request) {
+    if (is_powering_off_) {
+      return;
+    }
+    is_powering_off_ = true;
+    RCLCPP_FATAL(get_logger(), "Pico: %s. Powering off the Pi",
+                 request.c_str());
+    // -n: fail rather than wait for a password nobody will type.
+    const int result = std::system("sudo -n /usr/bin/systemctl poweroff");
+    if (result != 0) {
+      RCLCPP_ERROR(get_logger(),
+                   "Power-off failed (status %d): is the sudoers rule from "
+                   "docs/pi-setup.md in place?",
+                   result);
     }
   }
 
@@ -90,7 +113,6 @@ class PicoBridgeNode : public rclcpp::Node {
                                 : format_command(right, left);
   }
 
-  // Maps the Pico's first/second motor values onto the left/right wheels.
   template <typename T>
   LeftRight<T> to_left_right(T first, T second) const {
     return is_left_first_motor_ ? LeftRight<T>{first, second}
@@ -138,6 +160,7 @@ class PicoBridgeNode : public rclcpp::Node {
   SerialPort serial_;
   std::string received_;
   std::string last_stop_reason_ = "none";
+  bool is_powering_off_ = false;
 
   geometry_msgs::msg::Twist last_cmd_vel_;
   rclcpp::Time last_cmd_vel_time_;
@@ -154,7 +177,14 @@ class PicoBridgeNode : public rclcpp::Node {
 
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<pico_bridge::PicoBridgeNode>());
+  try {
+    rclcpp::spin(std::make_shared<pico_bridge::PicoBridgeNode>());
+  } catch (const std::exception& error) {
+    // E.g. no Pico at boot; systemd retries.
+    RCLCPP_FATAL(rclcpp::get_logger("pico_bridge"), "%s", error.what());
+    rclcpp::shutdown();
+    return 1;
+  }
   rclcpp::shutdown();
   return 0;
 }

@@ -6,14 +6,12 @@
 #include "phase_sequence.h"
 #include "pico/time.h"
 
-// kDrive takes commands from the Pi; the others are bench tests that wait
-// for a serial viewer.
+// kDrive takes commands from the Pi; the rest are bench tests.
 enum class Mode { kDrive, kSpeedTest, kSafetyTest, kSysIdTest };
 
 const char* mode_name(Mode mode);
 
-// A bench test: counts down 3 s once a serial viewer connects, then runs its
-// sequence and logs a CSV row every control period.
+// Counts down 3 s once a serial viewer connects, then logs CSV every period.
 class BenchTest {
  public:
   explicit BenchTest(Mode mode);
@@ -21,7 +19,7 @@ class BenchTest {
   void start_countdown(absolute_time_t now);
   Target target(absolute_time_t now) const;
 
-  // Logs stop changes, and a CSV row while the sequence runs.
+  // Stop changes, plus a CSV row while running.
   void log(absolute_time_t now, const PeriodReport& report);
 
   // Readings for checking the wiring, before the test starts or after it ends.

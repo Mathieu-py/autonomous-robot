@@ -113,7 +113,7 @@ M3_NUT_THICKNESS = 2.4
 GEARBOX_HOLE_DEPTH = 4.0             # listings
 
 # --- Nylon standoffs (male-female: body + 6 mm thread), from the kit ---
-STANDOFF_LENGTHS = (6.0, 8.0, 12.0, 15.0, 20.0)  # M2.5 and M3 alike; they stack
+STANDOFF_LENGTHS = (6.0, 8.0, 10.0, 12.0, 15.0, 20.0)  # M2.5 and M3; they stack
 
 # --- Printing ---
 PRINT_BED = 256.0                    # UW Bambu P1S/P2S

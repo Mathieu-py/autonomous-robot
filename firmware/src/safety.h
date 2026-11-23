@@ -1,7 +1,6 @@
 #pragma once
 
-// Conditions that stop the motors. main.cpp reads the hardware and passes the
-// readings in.
+// Conditions that stop the motors, from readings main.cpp passes in.
 
 enum class StopReason {
   kNone,
@@ -41,6 +40,7 @@ class SafetyMonitor {
   bool has_battery_reading_ = false;
   float filtered_battery_volts_ = 0.0f;
   bool is_battery_low_ = false;
+  float critically_low_seconds_ = 0.0f;
   bool should_pi_shut_down_ = false;
   float first_stall_seconds_ = 0.0f;
   float second_stall_seconds_ = 0.0f;

@@ -16,8 +16,7 @@ constexpr Phase kSpeedTestPhases[] = {
     {-kTestTargetRps, -kTestTargetRps, 3000},
 };
 
-// Safety test, in rev/s: runs 8 s then stops 2 s, six times, so each stop's
-// latch can clear before the next check (bumper, battery, stall).
+// Safety test, in rev/s: 8 s on, 2 s off, six times, so each stop can clear.
 constexpr auto kSafetyTestPhases = [] {
   std::array<Phase, 12> phases{};
   for (size_t i = 0; i < phases.size(); i += 2) {
@@ -27,8 +26,7 @@ constexpr auto kSafetyTestPhases = [] {
   return phases;
 }();
 
-// Motor identification, in open-loop power: slow ramps (for k_s, k_v) and
-// steps (for k_a) in each direction, with rests between.
+// Motor identification, open-loop power: ramps (k_s, k_v), steps (k_a).
 constexpr Phase kSysIdPhases[] = {
     {0.0f, 0.6f, 10000},   // 0: slow ramp forward
     {0.0f, 0.0f, 2000},    // 1: rest

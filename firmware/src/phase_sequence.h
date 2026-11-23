@@ -4,8 +4,7 @@
 #include <cstdint>
 #include <span>
 
-// A bench-test sequence: timed phases, each ramping linearly from start_value
-// to end_value. Times are ms since the sequence started.
+// Timed phases, each ramping linearly; times in ms since the start.
 
 struct Phase {
   float start_value;

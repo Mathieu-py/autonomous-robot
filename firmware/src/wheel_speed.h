@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-// A wheel's speed from its encoder count, updated once per control period.
-// Each reading is the average speed over the period since the last update.
+// Speed from the encoder count, averaged over each control period.
 class WheelSpeed {
  public:
   WheelSpeed(float ticks_per_rev, int32_t count)
@@ -11,7 +10,7 @@ class WheelSpeed {
 
   void update(int32_t count, float period_seconds);
 
-  float speed_rps() const { return speed_rps_; }  // revolutions per second
+  float speed_rps() const { return speed_rps_; }
   int32_t count() const { return last_count_; }
 
  private:

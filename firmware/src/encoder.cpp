@@ -23,8 +23,7 @@ const char* Encoder::start_pair(uint first_pin_a, uint second_pin_a,
     return "no free PIO state machine for the first encoder";
   }
 
-  // The second encoder shares the program, so it needs a state machine on
-  // the same PIO block.
+  // The second encoder shares the program, so it must use the same PIO.
   const int claimed = pio_claim_unused_sm(pio, false);
   if (claimed < 0) {
     return "no free PIO state machine for the second encoder";

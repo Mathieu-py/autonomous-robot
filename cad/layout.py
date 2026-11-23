@@ -1,13 +1,8 @@
 """Where each part sits, in millimetres.
 
-Motors sit on the lower deck in printed mounts; the wheels turn through slots,
-between the two decks. Origin at the deck centre on the wheel axis, z = 0 on
-the floor. +x is forward, +y is left. Parts are (centre x, centre y, size x,
-size y).
-
-Heavy parts sit behind the axle: with the caster at the back, a centre of
-mass too close to the axle tips the robot forward when it brakes. Estimated
-centre of mass: 16 mm behind the axle and 54 mm up, safe to 2.8 m/s².
+Origin at the deck centre on the wheel axis, z = 0 on the floor, +x forward,
++y left. Parts are (centre x, centre y, size x, size y). Heavy parts sit
+behind the axle so braking can't tip it forward (CoM 16 mm behind, 54 mm up).
 """
 from dimensions import (BATTERY_LENGTH, BATTERY_WIDTH, CASTER_FLANGE_LENGTH,
                         CASTER_FLANGE_WIDTH, CASTER_HEIGHT, CONVERTER_LENGTH,
@@ -34,7 +29,7 @@ DECK_RADIUS = 120.0                  # leaves a ring outside the wheel slots
 DECK_THICKNESS = 4.0
 LOWER_DECK_BOTTOM = CASTER_HEIGHT    # the caster bolts straight on
 LOWER_DECK_TOP = LOWER_DECK_BOTTOM + DECK_THICKNESS
-UPPER_DECK_BOTTOM = 79.0             # 11 mm above the wheel tops; pillars are 20 + 20 + 15 M3 standoffs
+UPPER_DECK_BOTTOM = 79.0             # 11 mm above the wheels; 20 + 20 + 15 standoffs
 WHEEL_SLOT_HALF_LENGTH = 35.5        # along x; wheel chord through the deck plus margin
 WHEEL_SLOT_MARGIN = 3.0              # each side of the tyre, along y
 GEARBOX_CRADLE_DEPTH = 2.0           # pocket in the deck top under each gearbox
@@ -44,40 +39,32 @@ MOUNT_THICKNESS = 5.0
 MOUNT_ARCH_RADIUS = 23.0            # upright outline: an arch round the gearbox centre
 MOUNT_FEET_X = (20.5, 32.0)          # |x| range of each foot, clear of the gearbox
 MOUNT_FEET_Y = (34.0, GEARBOX_FACE_Y)
-MOUNT_HOLES = [(sx * 26.25, y) for sx in (1, -1) for y in (39.0, 47.0)]  # M3 x 15, full 5 mm foot under the head
+MOUNT_HOLES = [(sx * 26.25, y) for sx in (1, -1) for y in (39.0, 47.0)]  # M3 x 15
 GEARBOX_HOLE_CIRCLE = 31.0           # 6 x M3, 4 mm deep (listings)
-# Gearbox screws are M3 x 6, their heads in counterbores so they reach 3.95 mm
-# into the 4 mm holes. Other M3 nuts sit in hex pockets in the deck.
 UPRIGHT_UNDER_HEAD = 2.2             # 2.2 + 3.95 into the gearbox = 6.15
 DECK_ABOVE_NUT = 1.5
-# Checked on the test print: holes at 0, 60, ..., 300 deg (0 = forward, 90 = up),
-# one each side and two above the shaft. The two below go unused: their screw
-# heads would break into the shaft slot and sit 0.2 mm above the deck.
+# Of 6 holes at 0-300 deg (0 forward, 90 up); the lower two hit the shaft slot.
 GEARBOX_HOLES_USED = (0, 60, 120, 180)
 
 # --- On the lower deck ---
-# Behind the motors: ~47 mm for the left motor's cable (it leaves backwards)
-# and wiring, then strap slot, battery, strap slot, caster.
+# Behind the motors: room for the left motor's cable, then battery and caster.
 CASTER = (-90.0, 0.0, CASTER_FLANGE_LENGTH, CASTER_FLANGE_WIDTH)
-# Its screws go in from the top, heads flush in 2.5 mm counterbores (one is under
-# the battery), nuts under the flange.
+# Screws from the top, heads in 2.5 mm counterbores, nuts under the flange.
 BATTERY = (-80.8, 0.0, BATTERY_WIDTH, BATTERY_LENGTH)   # slides out sideways
-# Two straps, one each side of the caster: under the deck they run at
-# |y| 17-39, clear of the caster flange (|y| <= 16).
+# One strap each side of the caster, clear of its flange under the deck.
 BATTERY_STRAP_SLOTS = [(x, y, 3.0, 22.0) for x in (-60.95, -100.65) for y in (28.0, -28.0)]
 PERFBOARD = (59.0, 0.0, 50.0, 70.0)                     # 5 x 7 cm board
 PERFBOARD_HOLES = (46.0, 65.5)       # measured centre spacing (x, y); holes Ø2.5
 PILLARS = [(70.0, 70.0), (70.0, -70.0), (-45.0, 92.0), (-45.0, -92.0)]
 
 # --- Bumper, on the lower deck's front edge ---
-# Microswitches lie flat, 20 mm side along y, rollers facing forward. Their
-# M2 holes are short slots along x, to set the rollers against the bumper.
+# Microswitches lie flat, rollers forward; slotted holes set them to the bumper.
 MICROSWITCH_X = 93.25                # body centre
 MICROSWITCH_HOLE_X = (MICROSWITCH_X + MICROSWITCH_WIDTH / 2
                       - MICROSWITCH_HOLES_TO_ROLLER_SIDE)
 MICROSWITCH_Y = (35.0, -35.0)
 MICROSWITCH_SLOT_LENGTH = 4.0
-MICROSWITCH_NUT_CHANNEL = (4.3, 1.2)  # width, depth under the deck: M2 x 12 clears its nut
+MICROSWITCH_NUT_CHANNEL = (4.3, 1.2)  # width, depth under the deck
 # The bumper hangs from two M3 pins that slide back in these slots.
 BUMPER_GUIDE_SLOTS = [(97.0, y) for y in (55.0, -55.0)]
 BUMPER_GUIDE_SLOT_LENGTH = 8.0
@@ -87,23 +74,22 @@ IMU = (0.0, 0.0, IMU_LENGTH, IMU_WIDTH)                 # above the wheel axis
 CONVERTER = (-45.0, 70.0, CONVERTER_LENGTH + 2 * CONVERTER_TAB_LENGTH,
              CONVERTER_WIDTH)                           # tabs along x; powers the Pi
 MDD3A = (50.0, 0.0, MDD3A_LENGTH, MDD3A_WIDTH)
-# 10 mm right of centre: its USB-C plug (19 mm out, plus 15 mm to bend) clears the converter.
+# 10 mm right of centre, so its USB-C plug can bend before the converter.
 PI_Y = -10.0
-PI = (-60.0, PI_Y, PI_LENGTH, PI_WIDTH)              # USB and Ethernet face the rear, USB-C faces left
+PI = (-60.0, PI_Y, PI_LENGTH, PI_WIDTH)              # USB-A to the rear, USB-C left
 PI_HOLES = [(-17.5 - 3.5 - dx, PI_Y + dy) for dx in (0.0, 58.0) for dy in (24.5, -24.5)]
 PI_HEIGHT = 17.5                     # measured: board underside to the USB ports' top
 PI_STANDOFF = 6.0
 PI_USB_C_X = -17.5 - 11.2            # datasheet: 11.2 from the board's front edge
-PI_USB_C_PLUG = (19.0, 15.0)         # measured: out past the board edge, then room to bend
+PI_USB_C_PLUG = (19.0, 15.0)         # measured: plug length, then room to bend
 ROCKER_SWITCH = (90.0, -45.0)        # front-right, in reach
-# Between the IMU and the MDD3A's screw terminals (they face the rear): motor,
-# MDD3A power and control, IMU and Pico USB wires. Beside the converter: its input.
+# The centre slot takes the wires from below; the other, the converter's input.
 CABLE_SLOTS = [(19.0, 0.0, 10.0, 40.0), (-55.0, 43.0, 30.0, 10.0)]
 
 # --- LiDAR plate, on M3 standoffs above the Pi ---
-LIDAR_X = -45.0                      # its cable leaves the base side: face it rearwards, off the plate edge
+LIDAR_X = -45.0                      # mount with its cable side to the rear
 LIDAR_PLATE = (LIDAR_X, PI_Y, 70.0, 70.0)
 LIDAR_PLATE_THICKNESS = 4.0
-LIDAR_PLATE_HEIGHT = 35.0            # 20 + 15 standoffs: 11.5 mm of air above the Pi for its fan
+LIDAR_PLATE_HEIGHT = 35.0            # 11.5 mm of air above the Pi's fan
 LIDAR_PLATE_PILLARS = [(LIDAR_X + dx, PI_Y + dy) for dx in (-32.0, 32.0) for dy in (32.0, -32.0)]
 BUMPER_MAX_MASS = 20.0               # grams; it sits furthest forward

@@ -1,7 +1,6 @@
 #pragma once
 
-// Wheel speed control: feedforward motor model plus PI feedback, on a ramped
-// setpoint. Speeds in rev/s; power is a PWM fraction.
+// Feedforward plus PI on a ramped setpoint (rev/s in, PWM fraction out).
 
 // A motor's measured model (k_s, k_v, k_a) and its PI gains, in power units.
 struct MotorGains {
@@ -12,8 +11,7 @@ struct MotorGains {
   float k_i;  // per revolution of accumulated error
 };
 
-// The setpoint at the two moments the controller uses; using one value for
-// both made the wheels run ahead of the ramp (PID runs 06 and 07).
+// One value for both moments made the wheels run ahead (PID runs 06-07).
 struct RampedSetpoint {
   float at_last_reading;        // rev/s, middle of the period just measured
   float for_next_period;        // rev/s, middle of the period about to run
@@ -36,7 +34,6 @@ class SetpointRamp {
   float previous_setpoint_rps_ = 0.0f;
 };
 
-// One wheel's controller.
 class SpeedController {
  public:
   SpeedController(const MotorGains& gains, float max_power)

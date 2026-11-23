@@ -1,0 +1,15 @@
+# Installed by docs/pi-setup.md, section 6.
+[Unit]
+Description=Pico bridge: /cmd_vel to the motor firmware, low-battery power-off
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=msevestre
+Environment=ROS_DOMAIN_ID=17
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && source /home/msevestre/robot_ws/install/setup.bash && exec ros2 run pico_bridge pico_bridge_node'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
