@@ -26,3 +26,6 @@ add_executable(drivetrain_test drivetrain_test.cpp ../src/drivetrain.cpp
   ../src/wheel.cpp ../src/wheel_speed.cpp ../src/speed_controller.cpp
   ../src/safety.cpp)
 add_test(NAME drivetrain COMMAND drivetrain_test)
+
+add_executable(imu_reading_test imu_reading_test.cpp ../src/imu_reading.cpp)
+add_test(NAME imu_reading COMMAND imu_reading_test)

@@ -47,6 +47,7 @@ std::span<const Phase> phases_for(Mode mode) {
     case Mode::kSysIdTest:
       return kSysIdPhases;
     case Mode::kDrive:
+    case Mode::kImuTest:
       break;
   }
   return {};
@@ -62,6 +63,8 @@ const char* mode_name(Mode mode) {
       return "safety test";
     case Mode::kSysIdTest:
       return "identification test";
+    case Mode::kImuTest:
+      return "IMU test";
     case Mode::kDrive:
       return "drive";
   }
@@ -137,6 +140,7 @@ void BenchTest::print_csv_header() const {
       printf("t_ms,phase,power,first_speed,second_speed\n");
       break;
     case Mode::kDrive:
+    case Mode::kImuTest:
       break;
   }
 }
@@ -160,6 +164,7 @@ void BenchTest::print_csv_row(int64_t t_ms, const PeriodReport& report) const {
              sequence_.value(t_ms), report.first_rps, report.second_rps);
       break;
     case Mode::kDrive:
+    case Mode::kImuTest:
       break;
   }
 }

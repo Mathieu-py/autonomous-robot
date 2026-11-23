@@ -7,7 +7,7 @@
 #include "pico/time.h"
 
 // kDrive takes commands from the Pi; the rest are bench tests.
-enum class Mode { kDrive, kSpeedTest, kSafetyTest, kSysIdTest };
+enum class Mode { kDrive, kSpeedTest, kSafetyTest, kSysIdTest, kImuTest };
 
 const char* mode_name(Mode mode);
 

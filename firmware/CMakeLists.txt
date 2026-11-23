@@ -25,14 +25,17 @@ add_executable(robot_firmware
   src/safety.cpp
   src/phase_sequence.cpp
   src/bench_test.cpp
+  src/imu.cpp
+  src/imu_reading.cpp
+  src/imu_test.cpp
 )
 
 # Encoder counting program from Raspberry Pi's pico-examples (BSD-3-Clause).
 pico_generate_pio_header(robot_firmware ${CMAKE_CURRENT_LIST_DIR}/src/quadrature_encoder.pio)
 
 # The Pico 2 W's LED is wired through its wireless chip, hence cyw43.
-target_link_libraries(robot_firmware pico_stdlib hardware_adc hardware_pio hardware_pwm
-  hardware_watchdog pico_cyw43_arch_none)
+target_link_libraries(robot_firmware pico_stdlib hardware_adc hardware_i2c hardware_pio
+  hardware_pwm hardware_watchdog pico_cyw43_arch_none)
 
 # Drop unread serial output instead of blocking the loop (and the watchdog).
 target_compile_definitions(robot_firmware PRIVATE PICO_STDIO_USB_STDOUT_TIMEOUT_US=0)

@@ -12,6 +12,8 @@
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
+#include "imu.h"
+#include "imu_test.h"
 #include "motor.h"
 #include "periodic_timer.h"
 #include "pico/cyw43_arch.h"
@@ -30,6 +32,8 @@ constexpr uint kSecondMotorPinA = 12;
 constexpr uint kFirstBumperPin = 14;
 constexpr uint kSecondBumperPin = 15;
 constexpr uint kBatteryPin = 28;
+constexpr uint kImuSdaPin = 4;  // I2C0
+constexpr uint kImuSclPin = 5;
 constexpr uint kBatteryAdcInput = kBatteryPin - 26;  // GP26-29 are ADC 0-3
 
 // 33k/10k divider; 12-bit ADC on a 3.3 V reference.
@@ -138,6 +142,14 @@ int main() {
           Encoder::start_pair(kFirstEncoderPinA, kSecondEncoderPinA,
                               first_encoder, second_encoder)) {
     halt(error);
+  }
+
+  if (kMode == Mode::kImuTest) {
+    Imu imu;
+    if (const char* error = imu.start(i2c0, kImuSdaPin, kImuSclPin)) {
+      halt(error);
+    }
+    run_imu_test(imu);
   }
 
   // Last: a hang over 100 ms now reboots the Pico, motors stopped.
