@@ -12,6 +12,7 @@ Finished on the bench on 9 November 2026, with the wheels lifted and a 12 V benc
 | Stops when commands stop | Stopping the bridge mid-drive stopped the wheels through the Pico's 250 ms command timeout (seen on the bench; the recording ends with the bridge) | [Teleop run 02](../results/teleop/2026-11-09-run02-no-load-keyboard-and-bridge-stop.png) |
 | Driven from ROS | Keyboard teleop: both wheels followed forward, backward, turns and arcs, and 60 s of quick key switching | [Teleop runs 01–04](../results/README.md#teleop-teleop) |
 | Drives on the floor | On the battery, driven over WiFi from the laptop with the bridge on the Pi: forward, back and turns; each bumper and the motor-power switch stopped it | Seen on 19 November, not recorded |
+| Powers the Pi off on a flat battery | Bench supply in place of the battery, turned down: the motors stopped at 10.4 V, and at 10.0 V the bridge logged `Pico: SHUTDOWN: battery critically low. Powering off the Pi` and the Pi shut down | Seen on 23 November, bridge log |
 
 ![PID run 10: both wheels step to 1.0 rev/s, stop, then step to -1.0 rev/s, tracking the ramped setpoint](../results/pid/2026-11-09-run10-no-load-1.0rps-naming-and-format-check.png)
 
@@ -45,4 +46,3 @@ Finished on the bench on 9 November 2026, with the wheels lifted and a 12 V benc
 ## Not done yet
 
 - **Step test under the robot's weight:** the recorded runs all had the wheels lifted. Floor driving showed no problems, but the step test hasn't been repeated on the floor.
-- **Low-battery power-off on the robot:** built and unit-tested on 23 November; the end-to-end check with the bench supply at 10.0 V ([pi-setup.md](pi-setup.md#6-low-battery-power-off-and-starting-at-boot), check 3) is still to run.
