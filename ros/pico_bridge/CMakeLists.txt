@@ -22,6 +22,8 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(drive_protocol_test test/drive_protocol_test.cpp)
   target_include_directories(drive_protocol_test PRIVATE include)
+  ament_add_gtest(gyro_bias_test test/gyro_bias_test.cpp)
+  target_include_directories(gyro_bias_test PRIVATE include)
 endif()
 
 ament_package()

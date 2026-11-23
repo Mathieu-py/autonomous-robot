@@ -7,6 +7,7 @@
 using pico_bridge::DriveGeometry;
 using pico_bridge::format_command;
 using pico_bridge::is_shutdown_request;
+using pico_bridge::parse_imu_line;
 using pico_bridge::parse_status_line;
 using pico_bridge::wheel_rps_from_twist;
 
@@ -58,6 +59,25 @@ TEST(ParseStatusLine, RejectsOtherLines) {
   EXPECT_FALSE(parse_status_line("SHUTDOWN: battery critically low"));
   EXPECT_FALSE(parse_status_line("S,1,2,3"));
   EXPECT_FALSE(parse_status_line("first: 0 (0.00 rev/s)"));
+}
+
+TEST(ParseImuLine, ReadsEveryField) {
+  const auto sample = parse_imu_line(
+      "I,1234,0.4300,-0.1300,9.2700,-0.02950,0.00010,0.05236\r");
+  ASSERT_TRUE(sample.has_value());
+  EXPECT_EQ(sample->uptime_ms, 1234);
+  EXPECT_DOUBLE_EQ(sample->accel_mps2.x, 0.43);
+  EXPECT_DOUBLE_EQ(sample->accel_mps2.y, -0.13);
+  EXPECT_DOUBLE_EQ(sample->accel_mps2.z, 9.27);
+  EXPECT_DOUBLE_EQ(sample->gyro_radps.x, -0.0295);
+  EXPECT_DOUBLE_EQ(sample->gyro_radps.y, 0.0001);
+  EXPECT_DOUBLE_EQ(sample->gyro_radps.z, 0.05236);
+}
+
+TEST(ParseImuLine, RejectsOtherLines) {
+  EXPECT_FALSE(parse_imu_line("S,1,0,0,0.000,0.000,11.90,none"));
+  EXPECT_FALSE(parse_imu_line("I,1,0.1,0.2"));
+  EXPECT_FALSE(parse_imu_line("WARNING: the IMU didn't answer on I2C"));
 }
 
 TEST(IsShutdownRequest, RecognisesOnlyThePicosShutdownLine) {

@@ -70,6 +70,38 @@ inline std::optional<PicoStatus> parse_status_line(const std::string& line) {
   return status;
 }
 
+struct Vector3 {
+  double x;
+  double y;
+  double z;
+};
+
+// "I,<uptime_ms>,<ax>,<ay>,<az>,<gx>,<gy>,<gz>" in m/s^2 and rad/s, chip axes.
+struct ImuSample {
+  int64_t uptime_ms;
+  Vector3 accel_mps2;
+  Vector3 gyro_radps;
+};
+
+inline std::optional<ImuSample> parse_imu_line(const std::string& line) {
+  if (line.rfind("I,", 0) != 0) {
+    return std::nullopt;
+  }
+  std::istringstream fields(line.substr(2));
+  ImuSample sample;
+  char c1 = 0, c2 = 0, c3 = 0, c4 = 0, c5 = 0, c6 = 0;
+  fields >> sample.uptime_ms >> c1 >> sample.accel_mps2.x >> c2 >>
+      sample.accel_mps2.y >> c3 >> sample.accel_mps2.z >> c4 >>
+      sample.gyro_radps.x >> c5 >> sample.gyro_radps.y >> c6 >>
+      sample.gyro_radps.z;
+  const bool are_commas = c1 == ',' && c2 == ',' && c3 == ',' && c4 == ',' &&
+                          c5 == ',' && c6 == ',';
+  if (!fields || !are_commas) {
+    return std::nullopt;
+  }
+  return sample;
+}
+
 // Repeated by the Pico while the battery is critically low.
 inline bool is_shutdown_request(const std::string& line) {
   return line.rfind("SHUTDOWN", 0) == 0;

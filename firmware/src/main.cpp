@@ -108,6 +108,14 @@ void read_commands(DriveCommandReader& reader, LatestCommand& latest,
   }
 }
 
+// Chip axes: X robot right, Y forward, Z up.
+void print_imu_for_pi(int64_t uptime_ms, const ImuReading& reading) {
+  const Vector3& a = reading.accel_mps2;
+  const Vector3& g = reading.gyro_radps;
+  printf("I,%lld,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f\n", uptime_ms, a.x, a.y, a.z,
+         g.x, g.y, g.z);
+}
+
 void print_status_for_pi(int64_t uptime_ms, const PeriodReport& report) {
   printf("S,%lld,%ld,%ld,%.3f,%.3f,%.2f,%s\n", uptime_ms,
          static_cast<long>(report.first_count),
@@ -144,10 +152,11 @@ int main() {
     halt(error);
   }
 
+  Imu imu;
+  const char* imu_error = imu.start(i2c0, kImuSdaPin, kImuSclPin);
   if (kMode == Mode::kImuTest) {
-    Imu imu;
-    if (const char* error = imu.start(i2c0, kImuSdaPin, kImuSclPin)) {
-      halt(error);
+    if (imu_error) {
+      halt(imu_error);
     }
     run_imu_test(imu);
   }
@@ -185,6 +194,10 @@ int main() {
       if (was_rebooted_by_watchdog) {
         printf("Rebooted by the watchdog: the firmware had hung\n");
       }
+      // Drives on without it.
+      if (imu_error) {
+        printf("WARNING: %s\n", imu_error);
+      }
       if (bench_test) {
         bench_test->start_countdown(now);
       }
@@ -214,6 +227,11 @@ int main() {
         bench_test->log(now, last_report);
       } else {
         print_status_for_pi(uptime_ms, last_report);
+        if (!imu_error) {
+          if (const auto reading = imu.read()) {
+            print_imu_for_pi(uptime_ms, *reading);
+          }
+        }
       }
     }
 

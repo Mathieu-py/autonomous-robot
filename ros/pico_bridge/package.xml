@@ -3,7 +3,7 @@
 <package format="3">
   <name>pico_bridge</name>
   <version>0.1.0</version>
-  <description>Bridges /cmd_vel to the Pico motor firmware over USB serial, and publishes wheel states and battery voltage.</description>
+  <description>Bridges /cmd_vel to the Pico motor firmware over USB serial, and publishes wheel states, battery voltage and the IMU.</description>
   <maintainer email="mathieu.sevestre@gmail.com">Mathieu Sevestre</maintainer>
   <license>MIT</license>
 

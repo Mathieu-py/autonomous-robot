@@ -1,4 +1,5 @@
-// Bridges /cmd_vel and the Pico's status; powers the Pi off on a flat battery.
+// Bridges /cmd_vel, the Pico's status and its IMU; powers the Pi off on a
+// flat battery.
 
 #include <chrono>
 #include <cmath>
@@ -8,14 +9,20 @@
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "pico_bridge/drive_protocol.hpp"
+#include "pico_bridge/gyro_bias.hpp"
 #include "pico_bridge/serial_port.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
+#include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 
 namespace pico_bridge {
 
 constexpr double kRadiansPerRev = 2.0 * M_PI;
+constexpr double kDegreesPerRadian = 180.0 / M_PI;
+constexpr size_t kGyroBiasSamples = 50;        // 1 s at 50 Hz
+constexpr double kGyroBiasMaxSpreadRadps = 0.035;  // 2 deg/s
+constexpr double kImuSilenceS = 1.0;
 
 template <typename T>
 struct LeftRight {
@@ -37,8 +44,14 @@ class PicoBridgeNode : public rclcpp::Node {
         ticks_per_rev_(declare_parameter("ticks_per_rev", 2473.0)),
         cmd_vel_timeout_(rclcpp::Duration::from_seconds(
             declare_parameter("cmd_vel_timeout_s", 1.0))),
+        imu_frame_id_(declare_parameter("imu_frame_id", "imu_link")),
+        // From the still readings of 23 Nov; step 4 measures them properly.
+        gyro_variance_(declare_parameter("gyro_variance", 3e-7)),
+        accel_variance_(declare_parameter("accel_variance", 4e-4)),
         serial_(port_path_),
-        last_cmd_vel_time_(now()) {
+        gyro_bias_(kGyroBiasSamples, kGyroBiasMaxSpreadRadps),
+        last_cmd_vel_time_(now()),
+        last_imu_time_(now()) {
     cmd_vel_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
         "cmd_vel", 10, [this](const geometry_msgs::msg::Twist& twist) {
           last_cmd_vel_ = twist;
@@ -48,6 +61,8 @@ class PicoBridgeNode : public rclcpp::Node {
         create_publisher<sensor_msgs::msg::JointState>("joint_states", 10);
     battery_publisher_ =
         create_publisher<sensor_msgs::msg::BatteryState>("battery", 10);
+    imu_publisher_ =
+        create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", 10);
     timer_ = create_wall_timer(std::chrono::milliseconds(20),
                                [this] { exchange_with_pico(); });
     RCLCPP_INFO(get_logger(), "Connected to the Pico on %s",
@@ -74,6 +89,8 @@ class PicoBridgeNode : public rclcpp::Node {
       }
       if (const auto status = parse_status_line(line)) {
         publish_status(*status);
+      } else if (const auto sample = parse_imu_line(line)) {
+        handle_imu(*sample);
       } else if (is_shutdown_request(line)) {
         power_off_once(line);
       } else if (!line.empty()) {
@@ -81,6 +98,64 @@ class PicoBridgeNode : public rclcpp::Node {
         RCLCPP_WARN(get_logger(), "Pico: %s", line.c_str());
       }
     }
+    warn_once_if_imu_silent();
+  }
+
+  // Publishes once the gyro offset is measured: keep the robot still at start.
+  void handle_imu(const ImuSample& sample) {
+    last_imu_time_ = now();
+    if (is_imu_silent_) {
+      RCLCPP_INFO(get_logger(), "IMU data is back");
+      is_imu_silent_ = false;
+    }
+    switch (gyro_bias_.add(sample.gyro_radps)) {
+      case GyroBias::Progress::kMeasuring:
+        return;
+      case GyroBias::Progress::kMovedSoRestarted:
+        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+                             "The robot moved while measuring the gyro "
+                             "offset; keep it still");
+        return;
+      case GyroBias::Progress::kReady:
+        if (!has_logged_gyro_bias_) {
+          const Vector3& bias = gyro_bias_.bias();
+          RCLCPP_INFO(get_logger(), "Gyro offset (deg/s): %.2f %.2f %.2f",
+                      bias.x * kDegreesPerRadian, bias.y * kDegreesPerRadian,
+                      bias.z * kDegreesPerRadian);
+          has_logged_gyro_bias_ = true;
+        }
+        break;
+    }
+    publish_imu(sample);
+  }
+
+  void publish_imu(const ImuSample& sample) {
+    sensor_msgs::msg::Imu imu;
+    imu.header.stamp = last_imu_time_;
+    imu.header.frame_id = imu_frame_id_;
+    imu.orientation_covariance[0] = -1.0;  // no orientation estimate
+    const Vector3 gyro = gyro_bias_.remove_from(sample.gyro_radps);
+    imu.angular_velocity.x = gyro.x;
+    imu.angular_velocity.y = gyro.y;
+    imu.angular_velocity.z = gyro.z;
+    imu.linear_acceleration.x = sample.accel_mps2.x;
+    imu.linear_acceleration.y = sample.accel_mps2.y;
+    imu.linear_acceleration.z = sample.accel_mps2.z;
+    for (const size_t diagonal : {0, 4, 8}) {
+      imu.angular_velocity_covariance[diagonal] = gyro_variance_;
+      imu.linear_acceleration_covariance[diagonal] = accel_variance_;
+    }
+    imu_publisher_->publish(imu);
+  }
+
+  void warn_once_if_imu_silent() {
+    if (is_imu_silent_ ||
+        (now() - last_imu_time_).seconds() <= kImuSilenceS) {
+      return;
+    }
+    is_imu_silent_ = true;
+    RCLCPP_WARN(get_logger(), "No IMU data from the Pico for %.0f s",
+                kImuSilenceS);
   }
 
   void power_off_once(const std::string& request) {
@@ -157,19 +232,27 @@ class PicoBridgeNode : public rclcpp::Node {
   double right_sign_;
   double ticks_per_rev_;
   rclcpp::Duration cmd_vel_timeout_;
+  std::string imu_frame_id_;
+  double gyro_variance_;
+  double accel_variance_;
   SerialPort serial_;
+  GyroBias gyro_bias_;
+  bool has_logged_gyro_bias_ = false;
+  bool is_imu_silent_ = false;
   std::string received_;
   std::string last_stop_reason_ = "none";
   bool is_powering_off_ = false;
 
   geometry_msgs::msg::Twist last_cmd_vel_;
   rclcpp::Time last_cmd_vel_time_;
+  rclcpp::Time last_imu_time_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr
       cmd_vel_subscription_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr
       joint_state_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr
       battery_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 
