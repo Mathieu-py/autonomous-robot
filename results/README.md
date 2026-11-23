@@ -83,3 +83,12 @@ Keyboard driving through `pico_bridge` (`ros/pico_bridge`), recorded with `ros2 
 | [02](teleop/2026-11-09-run02-no-load-keyboard-and-bridge-stop.png) ([CSV](teleop/2026-11-09-run02-no-load-keyboard-and-bridge-stop.csv)) | As run 01, then the bridge stopped mid-drive | Both wheels followed the commands. Stopping the bridge (Ctrl+C) mid-drive stopped the wheels through the Pico's 250 ms command timeout, as seen on the bench; the recording ends with the bridge, so it isn't in the data. |
 | [03](teleop/2026-11-09-run03-no-load-keyboard-and-bumper.png) ([CSV](teleop/2026-11-09-run03-no-load-keyboard-and-bumper.csv)) | Driving with two bumper presses | Each press stopped both wheels while the command continued; the bridge logged the stop and the clear, and driving resumed. |
 | [04](teleop/2026-11-09-run04-no-load-keyboard-quick-switching.png) ([CSV](teleop/2026-11-09-run04-no-load-keyboard-quick-switching.csv)) | 60 s with quick key switching | Both wheels followed every change. |
+
+## IMU ([imu/](imu/))
+
+The MPU-6050 published by `pico_bridge` on `/imu/data_raw` at 50 Hz (±4 g, ±500 °/s, ~44 Hz filter), recorded on the Pi with `ros2 bag record /imu/data_raw /joint_states` into `~/bags/` (outside the repo). Convert with `python3 tools/imu_bag_to_csv.py <bag dir> <output.csv>` (ROS 2 sourced). Columns: `t_s` (from the first message), `ax ay az` (m/s²) and `gx gy gz` (rad/s), in the chip's axes (X robot right, Y forward, Z up), with the bridge's start-up gyro offset already removed. Every run: on the battery, motor switch off, on a table.
+
+| Run | Test | Result |
+| --- | --- | --- |
+| [01](imu/2026-11-23-run01-still-172s.csv) | 172 s untouched | Gyro variance 3.7–4.5 × 10⁻⁷ (rad/s)², accel variance 1.9–5.3 × 10⁻⁴ (m/s²)²; the largest of each are the bridge's covariance defaults. Gravity reads 9.29 m/s², 5.6% low. The gyro Z offset left after the 1 s start-up measurement drifted between −0.02 and −0.06 °/s, which is −5.5° of heading over the run if uncorrected. Samples 20.0 ± 0.2 ms apart. |
+| [02](imu/2026-11-23-run02-three-left-turns-by-hand.csv) | Three left turns by hand, from and back to a straight edge | 1082.7° integrated for 1080° (0.25%, within how well the turns could be lined up by hand), at up to 98 °/s. No yaw scale correction needed at this resolution. |

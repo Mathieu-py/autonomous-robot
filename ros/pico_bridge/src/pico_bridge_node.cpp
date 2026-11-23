@@ -45,9 +45,9 @@ class PicoBridgeNode : public rclcpp::Node {
         cmd_vel_timeout_(rclcpp::Duration::from_seconds(
             declare_parameter("cmd_vel_timeout_s", 1.0))),
         imu_frame_id_(declare_parameter("imu_frame_id", "imu_link")),
-        // From the still readings of 23 Nov; step 4 measures them properly.
-        gyro_variance_(declare_parameter("gyro_variance", 3e-7)),
-        accel_variance_(declare_parameter("accel_variance", 4e-4)),
+        // Largest axis in results/imu/2026-11-23-run01-still-172s.csv.
+        gyro_variance_(declare_parameter("gyro_variance", 4.5e-7)),
+        accel_variance_(declare_parameter("accel_variance", 5.3e-4)),
         serial_(port_path_),
         gyro_bias_(kGyroBiasSamples, kGyroBiasMaxSpreadRadps),
         last_cmd_vel_time_(now()),
