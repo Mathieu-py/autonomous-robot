@@ -7,6 +7,7 @@
 namespace {
 
 constexpr float kTestTargetRps = 1.0f;
+constexpr uint32_t kIdleStatusIntervalMs = 200;
 
 // PID step test, in rev/s: forward, stop, then backward.
 constexpr Phase kSpeedTestPhases[] = {
@@ -71,8 +72,10 @@ TestSpec spec_for(Mode mode) {
 
 }  // namespace
 
-MotorTest::MotorTest(Mode mode)
-    : mode_(mode), sequence_(spec_for(mode).phases) {}
+MotorTest::MotorTest(Mode mode, absolute_time_t now)
+    : mode_(mode),
+      sequence_(spec_for(mode).phases),
+      idle_status_timer_(now, kIdleStatusIntervalMs) {}
 
 void MotorTest::start_countdown(absolute_time_t now) {
   start_time_ = delayed_by_ms(now, kTestStartDelayMs);
@@ -87,42 +90,46 @@ Target MotorTest::target(absolute_time_t now) const {
 }
 
 void MotorTest::log(absolute_time_t now, const PeriodReport& report) {
-  if (report.stop_reason != last_stop_reason_) {
-    if (report.stop_reason == StopReason::kNone) {
-      printf("Stop cleared\n");
-    } else {
-      printf("STOP: %s\n", stop_reason_name(report.stop_reason));
-    }
-    last_stop_reason_ = report.stop_reason;
-  }
+  print_stop_change(report.stop_reason);
 
   const int64_t t_ms = elapsed_ms(now);
-  if (sequence_.is_running(t_ms)) {
-    if (!has_started_) {
-      has_started_ = true;
+  const bool is_running = sequence_.is_running(t_ms);
+  if (is_running) {
+    if (!was_running_) {
       printf("%s\n", spec_for(mode_).csv_header);
     }
     print_csv_row(t_ms, report);
-  } else if (has_started_ && !has_finished_) {
-    has_finished_ = true;
+  } else if (was_running_) {
     printf("Done\n");
+  } else if (idle_status_timer_.tick(now)) {
+    print_idle_status(report);
   }
+  was_running_ = is_running;
+}
+
+int64_t MotorTest::elapsed_ms(absolute_time_t now) const {
+  return absolute_time_diff_us(start_time_, now) / 1000;
+}
+
+void MotorTest::print_stop_change(StopReason stop_reason) {
+  if (stop_reason == last_stop_reason_) {
+    return;
+  }
+  if (stop_reason == StopReason::kNone) {
+    printf("Stop cleared\n");
+  } else {
+    printf("STOP: %s\n", stop_reason_name(stop_reason));
+  }
+  last_stop_reason_ = stop_reason;
 }
 
 void MotorTest::print_idle_status(const PeriodReport& report) const {
-  if (has_started_ && !has_finished_) {
-    return;
-  }
   printf(
       "first: %8ld (%5.2f rev/s)  second: %8ld (%5.2f rev/s)  "
       "battery: %.2f V\n",
       static_cast<long>(report.first.count), report.first.speed_rps,
       static_cast<long>(report.second.count), report.second.speed_rps,
-      report.battery_volts);
-}
-
-int64_t MotorTest::elapsed_ms(absolute_time_t now) const {
-  return absolute_time_diff_us(start_time_, now) / 1000;
+      report.filtered_battery_volts);
 }
 
 void MotorTest::print_csv_row(int64_t t_ms, const PeriodReport& report) const {
@@ -135,14 +142,14 @@ void MotorTest::print_csv_row(int64_t t_ms, const PeriodReport& report) const {
     case Mode::kSafetyTest:
       printf("%lld,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%s\n", t_ms,
              report.setpoint_rps, report.first.speed_rps, report.first.power,
-             report.second.speed_rps, report.second.power, report.battery_volts,
+             report.second.speed_rps, report.second.power,
+             report.filtered_battery_volts,
              stop_reason_name(report.stop_reason));
       break;
     case Mode::kSysIdTest:
       printf("%lld,%u,%.4f,%.3f,%.3f\n", t_ms,
-             static_cast<unsigned>(sequence_.phase(t_ms)),
-             sequence_.value(t_ms), report.first.speed_rps,
-             report.second.speed_rps);
+             static_cast<unsigned>(sequence_.phase(t_ms)), report.first.power,
+             report.first.speed_rps, report.second.speed_rps);
       break;
     case Mode::kDrive:
     case Mode::kImuTest:

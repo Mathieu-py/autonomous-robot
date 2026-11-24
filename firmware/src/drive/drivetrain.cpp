@@ -31,7 +31,7 @@ PeriodReport Drivetrain::run_period(const Target& target,
       .setpoint_rps = setpoint_rps,
       .first = first_.state(),
       .second = second_.state(),
-      .battery_volts = safety_.filtered_battery_volts(),
+      .filtered_battery_volts = safety_.filtered_battery_volts(),
       .stop_reason = stop_reason,
       .should_pi_shut_down = safety_.should_pi_shut_down(),
   };

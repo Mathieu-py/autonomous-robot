@@ -1,7 +1,3 @@
-// Pins: encoders on GP2/GP3 and GP6/GP7, MPU-6050 I2C on GP4/GP5,
-// MDD3A inputs: first motor on GP10/GP11, second on GP12/GP13,
-// bumpers on GP14/GP15, battery divider on GP28 (ADC2).
-
 #include <cstdio>
 #include <optional>
 
@@ -44,7 +40,6 @@ constexpr float kBatteryVoltsPerCount =
 constexpr uint32_t kControlPeriodMs = 20;
 constexpr uint32_t kWatchdogTimeoutMs = 100;
 constexpr int64_t kCommandTimeoutMs = 250;
-constexpr uint32_t kStatusPrintIntervalMs = 200;
 constexpr uint32_t kLedIntervalMs = 500;
 
 // Same for both wheels; CMakeLists.txt reads it from robot.yaml.
@@ -74,6 +69,19 @@ constexpr Wheel::Config kSecondWheelConfig = wheel_config({.k_s = 0.010f,
     printf("ERROR: %s\n", reason);
     sleep_ms(1000);
   }
+}
+
+void start_wireless_chip() {
+  if (cyw43_arch_init() != 0) {
+    halt("failed to start the wireless chip, which drives the LED");
+  }
+  // The first write takes ~0.5 s, too long for the watchdog.
+  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
+}
+
+void toggle_led(bool& is_led_on) {
+  is_led_on = !is_led_on;
+  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, is_led_on);
 }
 
 void setup_bumper(uint pin) {
@@ -117,12 +125,37 @@ void print_imu_for_pi(int64_t uptime_ms, const ImuReading& reading) {
          g.x, g.y, g.z);
 }
 
+Target speed_target(const DriveCommand& command) {
+  return {.is_open_loop_power = false,
+          .first = command.first_rps,
+          .second = command.second_rps};
+}
+
+void print_connection_notes(bool was_rebooted_by_watchdog,
+                            const char* imu_error) {
+  if (was_rebooted_by_watchdog) {
+    printf("Rebooted by the watchdog: the firmware had hung\n");
+  }
+  // The robot drives without the IMU.
+  if (imu_error) {
+    printf("WARNING: %s\n", imu_error);
+  }
+}
+
 void print_status_for_pi(int64_t uptime_ms, const PeriodReport& report) {
   printf("S,%lld,%ld,%ld,%.3f,%.3f,%.2f,%s\n", uptime_ms,
          static_cast<long>(report.first.count),
          static_cast<long>(report.second.count), report.first.speed_rps,
-         report.second.speed_rps, report.battery_volts,
+         report.second.speed_rps, report.filtered_battery_volts,
          stop_reason_name(report.stop_reason));
+}
+
+void print_for_pi(int64_t uptime_ms, const PeriodReport& report,
+                  const std::optional<ImuReading>& imu_reading) {
+  print_status_for_pi(uptime_ms, report);
+  if (imu_reading) {
+    print_imu_for_pi(uptime_ms, *imu_reading);
+  }
 }
 
 }  // namespace
@@ -139,11 +172,7 @@ int main() {
   setup_battery_adc();
 
   // Before the encoders: the wireless chip also claims a PIO state machine.
-  if (cyw43_arch_init() != 0) {
-    halt("failed to start the wireless chip, which drives the LED");
-  }
-  // The first LED write takes ~0.5 s, too long for the watchdog.
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
+  start_wireless_chip();
 
   Encoder first_encoder;
   Encoder second_encoder;
@@ -155,50 +184,41 @@ int main() {
 
   Imu imu;
   const char* imu_error = imu.start(i2c0, kImuSdaPin, kImuSclPin);
+  const bool has_imu = imu_error == nullptr;
   if (kMode == Mode::kImuTest) {
-    if (imu_error) {
+    if (!has_imu) {
       halt(imu_error);
     }
     run_imu_test(imu);
   }
 
-  // Last: a hang over 100 ms now reboots the Pico, motors stopped.
+  // Last: a hang now reboots the Pico, motors stopped.
   const bool was_rebooted_by_watchdog = watchdog_caused_reboot();
   watchdog_enable(kWatchdogTimeoutMs, true);
 
   Drivetrain drivetrain(Wheel(kFirstWheelConfig, first_encoder.count()),
                         Wheel(kSecondWheelConfig, second_encoder.count()));
-  PeriodReport last_report{};
-
   DriveCommandReader command_reader;
   LatestCommand latest_command(kCommandTimeoutMs);
-  std::optional<MotorTest> motor_test;
-  if (kMode != Mode::kDrive) {
-    motor_test.emplace(kMode);
-  }
   bool has_serial_connected = false;
 
-  const absolute_time_t boot_time = get_absolute_time();
-  PeriodicTimer control_timer(boot_time, kControlPeriodMs);
-  PeriodicTimer status_timer(boot_time, kStatusPrintIntervalMs);
-  PeriodicTimer led_timer(boot_time, kLedIntervalMs);
+  const absolute_time_t loop_start = get_absolute_time();
+  PeriodicTimer control_timer(loop_start, kControlPeriodMs);
+  PeriodicTimer led_timer(loop_start, kLedIntervalMs);
   bool is_led_on = false;
+  std::optional<MotorTest> motor_test;
+  if (kMode != Mode::kDrive) {
+    motor_test.emplace(kMode, loop_start);
+  }
 
   while (true) {
     watchdog_update();
     const absolute_time_t now = get_absolute_time();
-    const int64_t uptime_ms = absolute_time_diff_us(boot_time, now) / 1000;
+    const int64_t uptime_ms = to_us_since_boot(now) / 1000;
 
-    // First connection: report a watchdog reboot, start a test's countdown.
     if (!has_serial_connected && stdio_usb_connected()) {
       has_serial_connected = true;
-      if (was_rebooted_by_watchdog) {
-        printf("Rebooted by the watchdog: the firmware had hung\n");
-      }
-      // Drives on without it.
-      if (imu_error) {
-        printf("WARNING: %s\n", imu_error);
-      }
+      print_connection_notes(was_rebooted_by_watchdog, imu_error);
       if (motor_test) {
         motor_test->start_countdown(now);
       }
@@ -209,40 +229,29 @@ int main() {
     }
 
     if (const auto period_seconds = control_timer.tick(now)) {
-      const DriveCommand command = latest_command.current(uptime_ms);
-      const Target target = motor_test ? motor_test->target(now)
-                                       : Target{.is_open_loop_power = false,
-                                                .first = command.first_rps,
-                                                .second = command.second_rps};
-      last_report = drivetrain.run_period(
+      const Target target =
+          motor_test ? motor_test->target(now)
+                     : speed_target(latest_command.current(uptime_ms));
+      const PeriodReport report = drivetrain.run_period(
           target, read_hardware(first_encoder, second_encoder),
           *period_seconds);
-      first_motor.set_power(last_report.first.power);
-      second_motor.set_power(last_report.second.power);
+      first_motor.set_power(report.first.power);
+      second_motor.set_power(report.second.power);
 
       // Repeated, so a bridge that connects late still sees it.
-      if (last_report.should_pi_shut_down) {
+      if (report.should_pi_shut_down) {
         printf("SHUTDOWN: battery critically low\n");
       }
       if (motor_test) {
-        motor_test->log(now, last_report);
+        motor_test->log(now, report);
       } else {
-        print_status_for_pi(uptime_ms, last_report);
-        if (!imu_error) {
-          if (const auto reading = imu.read()) {
-            print_imu_for_pi(uptime_ms, *reading);
-          }
-        }
+        const auto imu_reading = has_imu ? imu.read() : std::nullopt;
+        print_for_pi(uptime_ms, report, imu_reading);
       }
     }
 
-    if (motor_test && status_timer.tick(now)) {
-      motor_test->print_idle_status(last_report);
-    }
-
     if (led_timer.tick(now)) {
-      is_led_on = !is_led_on;
-      cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, is_led_on);
+      toggle_led(is_led_on);
     }
   }
 }

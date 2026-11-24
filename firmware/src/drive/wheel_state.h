@@ -6,5 +6,5 @@
 struct WheelState {
   int32_t count;
   float speed_rps;
-  float power;  // applied over the period just measured
+  float power;  // the last one set; runs until the next control period
 };

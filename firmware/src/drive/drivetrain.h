@@ -26,7 +26,7 @@ struct PeriodReport {
   float setpoint_rps;  // the first wheel's, compared to its last reading
   WheelState first;
   WheelState second;
-  float battery_volts;  // filtered
+  float filtered_battery_volts;
   StopReason stop_reason;
   bool should_pi_shut_down;
 };

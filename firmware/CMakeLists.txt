@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 pico_sdk_init()
 
-add_executable(robot_firmware
+set(FIRMWARE_SOURCES
   src/main.cpp
   src/bench/imu_test.cpp
   src/bench/mode.cpp
@@ -29,6 +29,9 @@ add_executable(robot_firmware
   src/drive/speed_controller.cpp
   src/drive/wheel.cpp
 )
+add_executable(robot_firmware ${FIRMWARE_SOURCES})
+# Warnings on our sources only: the SDK compiles its own into this target too.
+set_source_files_properties(${FIRMWARE_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra")
 target_include_directories(robot_firmware PRIVATE src)
 
 # Encoder counting program from Raspberry Pi's pico-examples (BSD-3-Clause).

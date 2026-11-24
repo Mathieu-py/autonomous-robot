@@ -2,6 +2,8 @@
 
 #include <cstdio>
 
+namespace {
+
 const char* mode_name(Mode mode) {
   switch (mode) {
     case Mode::kDrive:
@@ -17,6 +19,8 @@ const char* mode_name(Mode mode) {
   }
   return "unknown";
 }
+
+}  // namespace
 
 void announce_test_start(Mode mode) {
   printf("Serial connected: %s starts in %lu s\n", mode_name(mode),

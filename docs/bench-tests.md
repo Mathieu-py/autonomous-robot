@@ -223,12 +223,15 @@ The wheels are larger than the 65 mm estimate, and the tick count is within 0.4%
 
 **Pass:** the motors stop both times.
 
+**If the Pi runs from the same supply** (through the converter), don't hold a wheel with a 1.5 A limit: the sag takes the Pi down with it. The supply's 3 A maximum is only about one motor's stall current, so for the stall check, power the Pi from its own USB-C supply.
+
 ### Results
 
 - **2026-11-09, pass,** with the firmware's safety test mode (wheels lifted, 12 V bench supply with a 1.5 A limit; battery read through the 33k/10k divider on GP28, from the same supply). Logs and details in [results/README.md](../results/README.md#safety-checks-safety).
 - **Bumpers:** every press stopped both motors at once, and they restarted only after the next commanded stop.
 - **Low battery:** lowering the supply to 10.3 V while the wheels ran stopped them as the filtered reading crossed 10.5 V; it cleared once the supply was back above 11.0 V.
 - **Stall:** on the bench, holding a wheel stopped it within about 0.3 s, but through the low-battery cutoff: the 1.5 A limit made the supply's voltage sag faster than the 0.5 s stall check. Unplugging an encoder's ground mid-run (speed reads 0 while power is high) did trigger the stall check. On a battery, with no current limit, the stall check is the one that acts.
+- **2026-11-23, re-run after the firmware review,** in drive mode through the bridge, with the Pi now on the same 12 V, 1.5 A supply through the converter. The bumper, low-battery and over-limit turn checks passed, and a latched bumper stop now reports "low battery" once the battery drops. With the motor switch off, the stall check stopped the first motor each time. Holding the right wheel sagged the supply until the Pi lost power, with no shutdown request logged; the SD card showed no errors afterwards.
 
 ## 7. MPU-6050
 
