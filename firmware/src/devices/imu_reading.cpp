@@ -5,16 +5,20 @@
 namespace {
 
 constexpr float kStandardGravity = 9.80665f;
-constexpr float kCountsPerG = 8192.0f;         // ±4 g range
-constexpr float kCountsPerDegreePerS = 65.5f;  // ±500 °/s range
+// At setting 0 (±2 g, ±250 °/s); each setting step halves them.
+constexpr float kCountsPerGAtSetting0 = 16384.0f;
+constexpr float kCountsPerDegreePerSAtSetting0 = 131.0f;
+
+constexpr float kCountsPerG = kCountsPerGAtSetting0 / (1 << kAccelRangeSetting);
+constexpr float kCountsPerDegreePerS =
+    kCountsPerDegreePerSAtSetting0 / (1 << kGyroRangeSetting);
 
 // Registers are big-endian 16-bit two's complement.
-float signed_counts_at(const std::array<uint8_t, 14>& bytes, int offset) {
+float signed_counts_at(const ImuBytes& bytes, int offset) {
   return static_cast<int16_t>((bytes[offset] << 8) | bytes[offset + 1]);
 }
 
-Vector3 vector_at(const std::array<uint8_t, 14>& bytes, int offset,
-                  float units_per_count) {
+Vector3 vector_at(const ImuBytes& bytes, int offset, float units_per_count) {
   return {signed_counts_at(bytes, offset) * units_per_count,
           signed_counts_at(bytes, offset + 2) * units_per_count,
           signed_counts_at(bytes, offset + 4) * units_per_count};
@@ -22,7 +26,7 @@ Vector3 vector_at(const std::array<uint8_t, 14>& bytes, int offset,
 
 }  // namespace
 
-ImuReading imu_reading_from_bytes(const std::array<uint8_t, 14>& bytes) {
+ImuReading imu_reading_from_bytes(const ImuBytes& bytes) {
   constexpr float kMps2PerCount = kStandardGravity / kCountsPerG;
   constexpr float kRadpsPerCount =
       std::numbers::pi_v<float> / 180.0f / kCountsPerDegreePerS;

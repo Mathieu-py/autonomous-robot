@@ -6,6 +6,9 @@ project(firmware_tests CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 add_compile_options(-Wall -Wextra -Werror)
+# Trap undefined behaviour, such as a NaN cast to an integer.
+add_compile_options(-fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all)
+add_link_options(-fsanitize=undefined,float-cast-overflow)
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../src)
 enable_testing()
 
@@ -29,3 +32,9 @@ add_test(NAME drivetrain COMMAND drivetrain_test)
 
 add_executable(imu_reading_test imu_reading_test.cpp ../src/devices/imu_reading.cpp)
 add_test(NAME imu_reading COMMAND imu_reading_test)
+
+add_executable(pwm_levels_test pwm_levels_test.cpp ../src/devices/pwm_levels.cpp)
+add_test(NAME pwm_levels COMMAND pwm_levels_test)
+
+add_executable(periodic_timer_test periodic_timer_test.cpp)
+add_test(NAME periodic_timer COMMAND periodic_timer_test)

@@ -23,6 +23,7 @@ set(FIRMWARE_SOURCES
   src/devices/imu.cpp
   src/devices/imu_reading.cpp
   src/devices/motor.cpp
+  src/devices/pwm_levels.cpp
   src/drive/drive_command.cpp
   src/drive/drivetrain.cpp
   src/drive/safety.cpp

@@ -203,8 +203,8 @@ int main() {
   bool has_serial_connected = false;
 
   const absolute_time_t loop_start = get_absolute_time();
-  PeriodicTimer control_timer(loop_start, kControlPeriodMs);
-  PeriodicTimer led_timer(loop_start, kLedIntervalMs);
+  PeriodicTimer control_timer(to_us_since_boot(loop_start), kControlPeriodMs);
+  PeriodicTimer led_timer(to_us_since_boot(loop_start), kLedIntervalMs);
   bool is_led_on = false;
   std::optional<MotorTest> motor_test;
   if (kMode != Mode::kDrive) {
@@ -214,7 +214,8 @@ int main() {
   while (true) {
     watchdog_update();
     const absolute_time_t now = get_absolute_time();
-    const int64_t uptime_ms = to_us_since_boot(now) / 1000;
+    const uint64_t now_us = to_us_since_boot(now);
+    const auto uptime_ms = static_cast<int64_t>(now_us / 1000);
 
     if (!has_serial_connected && stdio_usb_connected()) {
       has_serial_connected = true;
@@ -228,7 +229,7 @@ int main() {
       read_commands(command_reader, latest_command, uptime_ms);
     }
 
-    if (const auto period_seconds = control_timer.tick(now)) {
+    if (const auto period_seconds = control_timer.tick(now_us)) {
       const Target target =
           motor_test ? motor_test->target(now)
                      : speed_target(latest_command.current(uptime_ms));
@@ -250,7 +251,7 @@ int main() {
       }
     }
 
-    if (led_timer.tick(now)) {
+    if (led_timer.tick(now_us)) {
       toggle_led(is_led_on);
     }
   }

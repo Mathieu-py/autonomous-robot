@@ -1,7 +1,5 @@
 #include "devices/imu.h"
 
-#include <array>
-
 #include "hardware/gpio.h"
 #include "pico/time.h"
 
@@ -19,6 +17,9 @@ constexpr uint8_t kAccelXoutH = 0x3B;
 constexpr uint8_t kPowerManagement = 0x6B;
 constexpr uint8_t kWhoAmI = 0x75;
 
+// Both config registers hold the range setting in bits 3-4.
+constexpr uint8_t range_bits(uint8_t setting) { return setting << 3; }
+
 }  // namespace
 
 const char* Imu::start(i2c_inst_t* i2c, uint sda_pin, uint scl_pin) {
@@ -32,10 +33,11 @@ const char* Imu::start(i2c_inst_t* i2c, uint sda_pin, uint scl_pin) {
     return "the IMU didn't answer on I2C: check SDA, SCL, VIN and GND";
   }
   sleep_ms(10);
-  const bool is_configured = write_register(kConfig, 0x03) &&  // ~44 Hz filter
-                             write_register(kSampleRateDivider, 9) &&  // 100 Hz
-                             write_register(kGyroConfig, 0x08) &&  // ±500 °/s
-                             write_register(kAccelConfig, 0x08);   // ±4 g
+  const bool is_configured =
+      write_register(kConfig, 0x03) &&          // ~44 Hz filter
+      write_register(kSampleRateDivider, 9) &&  // 100 Hz
+      write_register(kGyroConfig, range_bits(kGyroRangeSetting)) &&
+      write_register(kAccelConfig, range_bits(kAccelRangeSetting));
   return is_configured ? nullptr : "the IMU stopped answering during setup";
 }
 
@@ -48,7 +50,7 @@ std::optional<uint8_t> Imu::chip_id() const {
 }
 
 std::optional<ImuReading> Imu::read() const {
-  std::array<uint8_t, 14> bytes;
+  ImuBytes bytes;
   if (!read_registers(kAccelXoutH, bytes.data(), bytes.size())) {
     return std::nullopt;
   }

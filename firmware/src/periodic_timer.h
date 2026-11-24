@@ -3,33 +3,30 @@
 #include <cstdint>
 #include <optional>
 
-#include "pico/time.h"
-
 // Skips missed ticks rather than bunching them (jumpy speed readings).
 class PeriodicTimer {
  public:
-  PeriodicTimer(absolute_time_t start, uint32_t period_ms)
-      : period_ms_(period_ms),
-        last_tick_(start),
-        next_tick_(delayed_by_ms(start, period_ms)) {}
+  PeriodicTimer(uint64_t start_us, uint32_t period_ms)
+      : period_us_(uint64_t{period_ms} * 1000),
+        last_tick_us_(start_us),
+        next_tick_us_(start_us + period_us_) {}
 
   // When a tick is due, returns the seconds since the last one (always > 0).
-  std::optional<float> tick(absolute_time_t now) {
-    if (absolute_time_diff_us(next_tick_, now) < 0) {
+  std::optional<float> tick(uint64_t now_us) {
+    if (now_us < next_tick_us_) {
       return std::nullopt;
     }
-    const float seconds =
-        static_cast<float>(absolute_time_diff_us(last_tick_, now)) / 1e6f;
-    last_tick_ = now;
-    next_tick_ = delayed_by_ms(next_tick_, period_ms_);
-    if (absolute_time_diff_us(next_tick_, now) >= 0) {
-      next_tick_ = delayed_by_ms(now, period_ms_);
+    const float seconds = static_cast<float>(now_us - last_tick_us_) / 1e6f;
+    last_tick_us_ = now_us;
+    next_tick_us_ += period_us_;
+    if (now_us >= next_tick_us_) {
+      next_tick_us_ = now_us + period_us_;
     }
     return seconds;
   }
 
  private:
-  uint32_t period_ms_;
-  absolute_time_t last_tick_;
-  absolute_time_t next_tick_;
+  uint64_t period_us_;
+  uint64_t last_tick_us_;
+  uint64_t next_tick_us_;
 };

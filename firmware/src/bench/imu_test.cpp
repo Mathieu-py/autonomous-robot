@@ -10,7 +10,6 @@
 namespace {
 
 constexpr uint32_t kPrintIntervalMs = 100;
-constexpr uint8_t kMpu6050Id = 0x68;
 constexpr float kDegreesPerRadian = 180.0f / std::numbers::pi_v<float>;
 
 void wait_for_serial_then_count_down() {
@@ -25,10 +24,10 @@ void print_chip_id(const Imu& imu) {
   const auto id = imu.chip_id();
   if (!id) {
     printf("Couldn't read the IMU's chip ID\n");
-  } else if (*id == kMpu6050Id) {
+  } else if (*id == Imu::kChipId) {
     printf("IMU chip ID: 0x%02X (MPU-6050)\n", *id);
   } else {
-    printf("IMU chip ID: 0x%02X, expected 0x%02X\n", *id, kMpu6050Id);
+    printf("IMU chip ID: 0x%02X, expected 0x%02X\n", *id, Imu::kChipId);
   }
 }
 

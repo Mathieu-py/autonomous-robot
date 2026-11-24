@@ -1,18 +1,8 @@
 #include "devices/motor.h"
 
-#include <algorithm>
-#include <cmath>
-#include <cstdint>
-
+#include "devices/pwm_levels.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
-
-namespace {
-
-// 7500 steps at 150 MHz = 20 kHz PWM.
-constexpr uint16_t kPwmWrap = 7499;
-
-}  // namespace
 
 Motor::Motor(uint pin_a) : slice_(pwm_gpio_to_slice_num(pin_a)) {
   gpio_set_function(pin_a, GPIO_FUNC_PWM);
@@ -25,19 +15,7 @@ Motor::Motor(uint pin_a) : slice_(pwm_gpio_to_slice_num(pin_a)) {
 }
 
 void Motor::set_power(float power) const {
-  if (std::isnan(power)) {
-    power = 0.0f;
-  }
-
-  power = std::clamp(power, -kMaxPower, kMaxPower);
-
-  const auto level =
-      static_cast<uint16_t>(std::fabs(power) * (kPwmWrap + 1) + 0.5f);
-
-  // Set both at once so A and B are never on together. Zero brakes.
-  if (power > 0.0f) {
-    pwm_set_both_levels(slice_, level, 0);
-  } else {
-    pwm_set_both_levels(slice_, 0, level);
-  }
+  const PwmLevels levels = pwm_levels_for(power, kMaxPower);
+  // Both at once, so A and B are never on together.
+  pwm_set_both_levels(slice_, levels.a, levels.b);
 }

@@ -75,7 +75,7 @@ TestSpec spec_for(Mode mode) {
 MotorTest::MotorTest(Mode mode, absolute_time_t now)
     : mode_(mode),
       sequence_(spec_for(mode).phases),
-      idle_status_timer_(now, kIdleStatusIntervalMs) {}
+      idle_status_timer_(to_us_since_boot(now), kIdleStatusIntervalMs) {}
 
 void MotorTest::start_countdown(absolute_time_t now) {
   start_time_ = delayed_by_ms(now, kTestStartDelayMs);
@@ -101,7 +101,7 @@ void MotorTest::log(absolute_time_t now, const PeriodReport& report) {
     print_csv_row(t_ms, report);
   } else if (was_running_) {
     printf("Done\n");
-  } else if (idle_status_timer_.tick(now)) {
+  } else if (idle_status_timer_.tick(to_us_since_boot(now))) {
     print_idle_status(report);
   }
   was_running_ = is_running;
