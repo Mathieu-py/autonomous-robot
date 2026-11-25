@@ -1,9 +1,11 @@
 # Drive geometry, the one copy: read by pico_bridge, wheel_odometry, the URDF,
 # tools/plot_teleop.py and, for ticks_per_rev, the firmware build.
+# Diameter and separation are as the wheels roll on the floor (floor check,
+# 2026-11-25); calipers give 0.068 and 0.180.
 /**:
   ros__parameters:
-    wheel_diameter_m: 0.068
-    wheel_separation_m: 0.180
+    wheel_diameter_m: 0.0670
+    wheel_separation_m: 0.1704
     ticks_per_rev: 2473.0
 
 # Which Pico motor turns each wheel, and which runs backwards.
