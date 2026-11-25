@@ -1,5 +1,5 @@
-"""The robot's frames, wheel odometry and robot_localization's EKF.
-pico_bridge runs separately, as a service."""
+"""The robot's frames, wheel odometry, and two EKFs side by side:
+robot_localization's and ours. pico_bridge runs separately, as a service."""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import (Command, LaunchConfiguration,
@@ -26,4 +26,6 @@ def generate_launch_description():
              parameters=[drive_config, use_sim_time]),
         Node(package="robot_localization", executable="ekf_node",
              name="ekf_filter_node", parameters=[ekf_config, use_sim_time]),
+        Node(package="robot_ekf", executable="robot_ekf_node",
+             parameters=[use_sim_time]),
     ])

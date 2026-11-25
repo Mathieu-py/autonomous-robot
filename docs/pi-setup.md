@@ -34,7 +34,7 @@ These are still 24.04 packages. Don't run `do-release-upgrade`, which the login 
 
 ## 2. The robot's packages
 
-Three ROS packages: `pico_bridge` (the Pico's serial link), `robot_description` (the URDF and `config/robot.yaml`, the one copy of the wheel diameter, track width, ticks per rev and motor wiring) and `wheel_odometry`.
+Four ROS packages: `pico_bridge` (the Pico's serial link), `robot_description` (the URDF and `config/robot.yaml`, the one copy of the wheel diameter, track width, ticks per rev and motor wiring), `wheel_odometry`, and `robot_ekf` (our own EKF).
 
 ```bash
 mkdir -p ~/robot_ws/src && cd ~/robot_ws/src
@@ -164,14 +164,29 @@ sudo umount -l /mnt                   # the Pico has already rebooted into the n
 sudo systemctl start pico-bridge
 ```
 
-## 8. Frames and wheel odometry
+## 8. Frames, wheel odometry and the EKF
 
-`robot_state_publisher` publishes the URDF's frames (`base_link` on the floor under the axle, the wheels, the caster and `imu_link`), and `wheel_odometry` turns `/joint_states` into `/odom` and the `odom → base_link` transform. With the bridge running, in its own terminal on the Pi:
+`robot_state_publisher` publishes the URDF's frames (`base_link` on the floor under the axle, the wheels, the caster and `imu_link`), and `wheel_odometry` turns `/joint_states` into `/odom` and the `odom → base_link` transform. Two EKFs combine `/odom`'s speed and turn rate with the gyro's turn rate, side by side for comparison: robot_localization's (`config/ekf.yaml`) into `/odometry/filtered`, and ours (`robot_ekf`) into `/ekf/odom`. Ours also estimates the gyro's zero offset, published on `/ekf/gyro_bias`, and turns by the gyro alone while the wheels slip; it logs `Wheels slipping` when that happens. It sorts the two sensors' readings by time first, so `/ekf/odom` runs about 30 ms behind `/odom`. Both EKFs leave the transform to `wheel_odometry`. The `rosdep install` line in section 2 installs robot_localization and Eigen. With the bridge running, in its own terminal on the Pi:
 
 ```bash
 ros2 launch robot_description robot.launch.py
 ```
 
-It logs `Wheel diameter 0.0670 m, separation 0.1704 m`. On the laptop, `rviz2` with Fixed Frame `odom`, a **TF** display and a **RobotModel** display reading `/robot_description` shows the robot moving as it drives. Read the pose with `ros2 run tf2_ros tf2_echo odom base_link`.
+It logs `Wheel diameter 0.0670 m, separation 0.1704 m`, and `ros2 topic hz /odometry/filtered` and `ros2 topic hz /ekf/odom` each show about 50 Hz. On the laptop, `rviz2` with Fixed Frame `odom`, a **TF** display and a **RobotModel** display reading `/robot_description` shows the robot moving as it drives. Read the pose with `ros2 run tf2_ros tf2_echo odom base_link`.
 
 **Check:** with the robot on the floor, run `python3 tools/odom_drive.py straight 1.0` or `spin 720` on the laptop. It drives that far by `/odom`, stops, and prints where `/odom` thinks the robot ended, for comparing with a tape measure. After the floor calibration on 25 November 2026, 1 m read 0.2% long and two full turns within 0.2% either way ([results](../results/README.md#odometry-calibration-odometry)).
+
+**Replaying a recording** through the same nodes, on the laptop, needs a recording with `/joint_states` and `/imu/data_raw`. In one terminal:
+
+```bash
+ros2 launch robot_description robot.launch.py use_sim_time:=true
+```
+
+and in another:
+
+```bash
+ros2 bag play <bag dir> --clock --topics /joint_states /imu/data_raw
+```
+
+`wheel_odometry` recomputes `/odom` from the wheels, so the recording's own `/odom` is left out. Each gyro message keeps the covariance it was recorded with, and the EKFs weigh the gyro by that. Relaunch before replaying the same recording again: `wheel_odometry` carries on from where the last replay ended. Our EKF restarts by itself when time goes back, and logs `Time went back`.
+
