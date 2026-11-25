@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from odom_drive import OdomTracker, yaw_from_quaternion
+from odom_drive import OdomTracker, moves_for, yaw_from_quaternion
 
 
 def test_adds_up_the_distance_travelled():
@@ -41,3 +41,15 @@ def test_yaw_from_a_quaternion_about_z():
     half = math.radians(30) / 2
     assert yaw_from_quaternion(math.sin(half), math.cos(half)) == \
         pytest.approx(math.radians(30))
+
+
+def test_one_move_for_a_straight_run_or_a_spin():
+    assert moves_for("straight", -0.5) == [("straight", -0.5)]
+    assert moves_for("spin", 720) == [("spin", 720)]
+
+
+def test_a_square_turns_the_way_its_sign_says():
+    left = moves_for("square", 1.0)
+    right = moves_for("square", -1.0)
+    assert left == [("straight", 1.0), ("spin", 90.0)] * 4
+    assert right == [("straight", 1.0), ("spin", -90.0)] * 4
