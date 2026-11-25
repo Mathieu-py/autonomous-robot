@@ -19,11 +19,21 @@ inline std::string format_command(double first_rps, double second_rps) {
   return line;
 }
 
-// A line's comma-separated fields, ignoring a trailing \r.
-inline std::vector<std::string> split_fields(std::string line) {
-  if (!line.empty() && line.back() == '\r') {
+// Removes the first whole line from received; returns it without its \r\n.
+inline std::optional<std::string> take_line(std::string& received) {
+  const size_t newline = received.find('\n');
+  if (newline == std::string::npos) {
+    return std::nullopt;
+  }
+  std::string line = received.substr(0, newline);
+  received.erase(0, newline + 1);
+  if (line.ends_with('\r')) {
     line.pop_back();
   }
+  return line;
+}
+
+inline std::vector<std::string> split_fields(const std::string& line) {
   std::vector<std::string> fields;
   size_t start = 0;
   size_t comma;
@@ -47,10 +57,11 @@ std::optional<T> parse_number(const std::string& field) {
   return value;
 }
 
-// "S,<uptime_ms>,<first_count>,<second_count>,<first_rps>,<second_rps>,
-// <battery_volts>,<stop reason>"
+// The stop reason while the motors may run.
+constexpr char kNoStopReason[] = "none";
+
+// "S,<first_count>,<second_count>,<first_rps>,<second_rps>,<volts>,<stop>"
 struct PicoStatus {
-  int64_t uptime_ms;
   int64_t first_count;
   int64_t second_count;
   double first_rps;
@@ -61,55 +72,48 @@ struct PicoStatus {
 
 inline std::optional<PicoStatus> parse_status_line(const std::string& line) {
   const auto fields = split_fields(line);
-  if (fields.size() != 8 || fields[0] != "S" || fields[7].empty()) {
+  if (fields.size() != 7 || fields[0] != "S" || fields[6].empty()) {
     return std::nullopt;
   }
-  const auto uptime_ms = parse_number<int64_t>(fields[1]);
-  const auto first_count = parse_number<int64_t>(fields[2]);
-  const auto second_count = parse_number<int64_t>(fields[3]);
-  const auto first_rps = parse_number<double>(fields[4]);
-  const auto second_rps = parse_number<double>(fields[5]);
-  const auto battery_volts = parse_number<double>(fields[6]);
-  if (!uptime_ms || !first_count || !second_count || !first_rps ||
-      !second_rps || !battery_volts) {
+  const auto first_count = parse_number<int64_t>(fields[1]);
+  const auto second_count = parse_number<int64_t>(fields[2]);
+  const auto first_rps = parse_number<double>(fields[3]);
+  const auto second_rps = parse_number<double>(fields[4]);
+  const auto battery_volts = parse_number<double>(fields[5]);
+  if (!first_count || !second_count || !first_rps || !second_rps ||
+      !battery_volts) {
     return std::nullopt;
   }
-  return PicoStatus{*uptime_ms,  *first_count,   *second_count, *first_rps,
-                    *second_rps, *battery_volts, fields[7]};
+  return PicoStatus{*first_count, *second_count,  *first_rps,
+                    *second_rps,  *battery_volts, fields[6]};
 }
 
-// "I,<uptime_ms>,<ax>,<ay>,<az>,<gx>,<gy>,<gz>" in m/s^2 and rad/s, chip axes.
+// "I,<ax>,<ay>,<az>,<gx>,<gy>,<gz>" in m/s^2 and rad/s, chip axes.
 struct ImuSample {
-  int64_t uptime_ms;
   Vector3 accel_mps2;
   Vector3 gyro_radps;
 };
 
 inline std::optional<ImuSample> parse_imu_line(const std::string& line) {
   const auto fields = split_fields(line);
-  if (fields.size() != 8 || fields[0] != "I") {
-    return std::nullopt;
-  }
-  const auto uptime_ms = parse_number<int64_t>(fields[1]);
-  if (!uptime_ms) {
+  if (fields.size() != 7 || fields[0] != "I") {
     return std::nullopt;
   }
   double values[6];  // ax, ay, az, gx, gy, gz
   for (int i = 0; i < 6; ++i) {
-    const auto value = parse_number<double>(fields[2 + i]);
+    const auto value = parse_number<double>(fields[1 + i]);
     if (!value) {
       return std::nullopt;
     }
     values[i] = *value;
   }
-  return ImuSample{*uptime_ms,
-                   {values[0], values[1], values[2]},
+  return ImuSample{{values[0], values[1], values[2]},
                    {values[3], values[4], values[5]}};
 }
 
 // Repeated by the Pico while the battery is critically low.
 inline bool is_shutdown_request(const std::string& line) {
-  return line.rfind("SHUTDOWN", 0) == 0;
+  return line.starts_with("SHUTDOWN");
 }
 
 }  // namespace pico_bridge

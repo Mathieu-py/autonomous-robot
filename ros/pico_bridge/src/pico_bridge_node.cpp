@@ -75,23 +75,16 @@ class PicoBridgeNode : public rclcpp::Node {
       rclcpp::shutdown();
       return;
     }
-    size_t line_end;
-    while ((line_end = received_.find('\n')) != std::string::npos) {
-      std::string line = received_.substr(0, line_end);
-      received_.erase(0, line_end + 1);
-      // journalctl shows lines containing \r as "[blob data]".
-      if (!line.empty() && line.back() == '\r') {
-        line.pop_back();
-      }
-      if (const auto status = parse_status_line(line)) {
+    while (const auto line = take_line(received_)) {
+      if (const auto status = parse_status_line(*line)) {
         publish_status(*status);
-      } else if (const auto sample = parse_imu_line(line)) {
+      } else if (const auto sample = parse_imu_line(*line)) {
         handle_imu(*sample);
-      } else if (is_shutdown_request(line)) {
-        power_off_once(line);
-      } else if (!line.empty()) {
+      } else if (is_shutdown_request(*line)) {
+        power_off_once(*line);
+      } else if (!line->empty()) {
         // One-off messages, e.g. a watchdog reboot.
-        RCLCPP_WARN(get_logger(), "Pico: %s", line.c_str());
+        RCLCPP_WARN(get_logger(), "Pico: %s", line->c_str());
       }
     }
     warn_once_if_imu_silent();
@@ -202,7 +195,7 @@ class PicoBridgeNode : public rclcpp::Node {
     battery_publisher_->publish(battery);
 
     if (status.stop_reason != last_stop_reason_) {
-      if (status.stop_reason == "none") {
+      if (status.stop_reason == kNoStopReason) {
         RCLCPP_INFO(get_logger(), "Pico stop cleared");
       } else {
         RCLCPP_WARN(get_logger(), "Pico stopped the motors: %s",
@@ -225,7 +218,7 @@ class PicoBridgeNode : public rclcpp::Node {
   bool has_logged_gyro_bias_ = false;
   bool is_imu_silent_ = false;
   std::string received_;
-  std::string last_stop_reason_ = "none";
+  std::string last_stop_reason_ = kNoStopReason;
   bool is_powering_off_ = false;
 
   geometry_msgs::msg::Twist last_cmd_vel_;

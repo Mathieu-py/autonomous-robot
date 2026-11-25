@@ -15,6 +15,7 @@ pico_sdk_init()
 
 set(FIRMWARE_SOURCES
   src/main.cpp
+  src/pi_lines.cpp
   src/bench/imu_test.cpp
   src/bench/mode.cpp
   src/bench/motor_tests.cpp

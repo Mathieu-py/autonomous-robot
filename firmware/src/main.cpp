@@ -14,6 +14,7 @@
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
 #include "periodic_timer.h"
+#include "pi_lines.h"
 #include "pico/cyw43_arch.h"
 #include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
@@ -117,14 +118,6 @@ void read_commands(DriveCommandReader& reader, LatestCommand& latest,
   }
 }
 
-// Chip axes: X robot right, Y forward, Z up.
-void print_imu_for_pi(int64_t uptime_ms, const ImuReading& reading) {
-  const Vector3& a = reading.accel_mps2;
-  const Vector3& g = reading.gyro_radps;
-  printf("I,%lld,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f\n", uptime_ms, a.x, a.y, a.z,
-         g.x, g.y, g.z);
-}
-
 Target speed_target(const DriveCommand& command) {
   return {.is_open_loop_power = false,
           .first = command.first_rps,
@@ -142,19 +135,11 @@ void print_connection_notes(bool was_rebooted_by_watchdog,
   }
 }
 
-void print_status_for_pi(int64_t uptime_ms, const PeriodReport& report) {
-  printf("S,%lld,%ld,%ld,%.3f,%.3f,%.2f,%s\n", uptime_ms,
-         static_cast<long>(report.first.count),
-         static_cast<long>(report.second.count), report.first.speed_rps,
-         report.second.speed_rps, report.filtered_battery_volts,
-         stop_reason_name(report.stop_reason));
-}
-
-void print_for_pi(int64_t uptime_ms, const PeriodReport& report,
+void print_for_pi(const PeriodReport& report,
                   const std::optional<ImuReading>& imu_reading) {
-  print_status_for_pi(uptime_ms, report);
+  printf("%s\n", format_status_line(report).data());
   if (imu_reading) {
-    print_imu_for_pi(uptime_ms, *imu_reading);
+    printf("%s\n", format_imu_line(*imu_reading).data());
   }
 }
 
@@ -247,7 +232,7 @@ int main() {
         motor_test->log(now, report);
       } else {
         const auto imu_reading = has_imu ? imu.read() : std::nullopt;
-        print_for_pi(uptime_ms, report, imu_reading);
+        print_for_pi(report, imu_reading);
       }
     }
 

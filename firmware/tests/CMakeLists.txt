@@ -10,6 +10,8 @@ add_compile_options(-Wall -Wextra -Werror)
 add_compile_options(-fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all)
 add_link_options(-fsanitize=undefined,float-cast-overflow)
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../src)
+# The protocol examples shared with the bridge's tests.
+include_directories(${CMAKE_CURRENT_LIST_DIR}/../../ros/pico_bridge/test)
 enable_testing()
 
 add_executable(safety_test safety_test.cpp ../src/drive/safety.cpp)
@@ -38,3 +40,6 @@ add_test(NAME pwm_levels COMMAND pwm_levels_test)
 
 add_executable(periodic_timer_test periodic_timer_test.cpp)
 add_test(NAME periodic_timer COMMAND periodic_timer_test)
+
+add_executable(pi_lines_test pi_lines_test.cpp ../src/pi_lines.cpp ../src/drive/safety.cpp)
+add_test(NAME pi_lines COMMAND pi_lines_test)
