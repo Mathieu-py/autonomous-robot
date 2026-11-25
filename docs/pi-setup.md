@@ -172,6 +172,6 @@ sudo systemctl start pico-bridge
 ros2 launch robot_description robot.launch.py
 ```
 
-It logs `Wheel diameter 0.0680 m, separation 0.1800 m`. On the laptop, `rviz2` with Fixed Frame `odom`, a **TF** display and a **RobotModel** display reading `/robot_description` shows the robot moving as it drives. Read the pose with `ros2 run tf2_ros tf2_echo odom base_link`.
+It logs `Wheel diameter 0.0670 m, separation 0.1704 m`. On the laptop, `rviz2` with Fixed Frame `odom`, a **TF** display and a **RobotModel** display reading `/robot_description` shows the robot moving as it drives. Read the pose with `ros2 run tf2_ros tf2_echo odom base_link`.
 
-**Check (not yet run):** driven about 1 m forward, `/odom` x matches a tape measure; spun about 90° left on the spot, the yaw reads about +90°.
+**Check:** with the robot on the floor, run `python3 tools/odom_drive.py straight 1.0` or `spin 720` on the laptop. It drives that far by `/odom`, stops, and prints where `/odom` thinks the robot ended, for comparing with a tape measure. After the floor calibration on 25 November 2026, 1 m read 0.2% long and two full turns within 0.2% either way ([results](../results/README.md#odometry-calibration-odometry)).

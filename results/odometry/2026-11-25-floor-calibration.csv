@@ -1,0 +1,13 @@
+run,geometry,test,odom,measured,unit,reading
+1,caliper,straight,1.012,0.997,m,"39 1/4 in; front flag 29 mm right"
+2,caliper,straight,1.010,0.997,m,"39 1/4 in; front 19 mm right, rear 14 mm right"
+3,caliper,straight,1.011,0.994,m,"39 1/8 in; front 3 mm left, rear 3 mm left"
+4,caliper,spin,722.8,751.4,deg,"flag 65 mm past the tick"
+5,caliper,spin,722.2,751.4,deg,"flag 65 mm past the tick"
+6,caliper,spin,-722.8,-753.4,deg,"flag 69 mm past the tick"
+7,caliper,spin,-722.3,-751.4,deg,"flag 65 mm past the tick"
+8,floor,straight,1.012,1.010,m,"39 3/4 in; a little right"
+9,floor,spin,721.9,722.4,deg,"flag 5 mm past the tick"
+10,floor,straight,1.012,1.010,m,"39 3/4 in; front 9 mm right, rear 9 mm right"
+11,floor,spin,723.0,724.3,deg,"flag 9 mm past the tick"
+12,floor,spin,-723.1,-723.6,deg,"flag 7.5 mm past the tick"

@@ -42,8 +42,9 @@ class PicoBridgeNode : public rclcpp::Node {
         cmd_vel_timeout_(rclcpp::Duration::from_seconds(
             declare_parameter("cmd_vel_timeout_s", 1.0))),
         imu_frame_id_(declare_parameter("imu_frame_id", "imu_link")),
-        // Largest axis in results/imu/2026-11-23-run01-still-172s.csv.
-        gyro_variance_(declare_parameter("gyro_variance", 4.5e-7)),
+        // Gyro while driving, with motor vibration (results/README.md); accel
+        // still, largest axis in results/imu/2026-11-23-run01-still-172s.csv.
+        gyro_variance_(declare_parameter("gyro_variance", 4.1e-4)),
         accel_variance_(declare_parameter("accel_variance", 5.3e-4)),
         serial_(port_path_),
         gyro_bias_(kGyroBiasWindowSize, kGyroBiasMaxSpreadRadps),

@@ -43,12 +43,13 @@ class WheelOdometryNode : public rclcpp::Node {
                   declare_parameter<double>("wheel_separation_m")},
         odom_frame_(declare_parameter("odom_frame", "odom")),
         base_frame_(declare_parameter("base_frame", "base_link")),
-        // Placeholders until measured.
+        // Unmeasured: a dead-reckoned pose's error grows, so fuse the speeds.
         pose_variance_(declare_parameter("pose_variance", 1e-3)),
+        // Encoder rounding while driving (results/README.md, odometry noise).
         linear_velocity_variance_(
-            declare_parameter("linear_velocity_variance", 1e-4)),
+            declare_parameter("linear_velocity_variance", 2.2e-6)),
         angular_velocity_variance_(
-            declare_parameter("angular_velocity_variance", 1e-3)),
+            declare_parameter("angular_velocity_variance", 3.1e-4)),
         odometry_(geometry_) {
     odom_publisher_ = create_publisher<nav_msgs::msg::Odometry>("odom", 10);
     // Off once the EKF publishes this transform.

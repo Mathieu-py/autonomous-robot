@@ -90,5 +90,32 @@ The MPU-6050 published by `pico_bridge` on `/imu/data_raw` at 50 Hz (±4 g, ±50
 
 | Run | Test | Result |
 | --- | --- | --- |
-| [01](imu/2026-11-23-run01-still-172s.csv) | 172 s untouched | Gyro variance 3.7–4.5 × 10⁻⁷ (rad/s)², accel variance 1.9–5.3 × 10⁻⁴ (m/s²)²; the largest of each are the bridge's covariance defaults. Gravity reads 9.29 m/s², 5.6% low. The gyro Z offset left after the 1 s start-up measurement drifted between −0.02 and −0.06 °/s, which is −5.5° of heading over the run if uncorrected. Samples 20.0 ± 0.2 ms apart. |
+| [01](imu/2026-11-23-run01-still-172s.csv) | 172 s untouched | Gyro variance 3.7–4.5 × 10⁻⁷ (rad/s)², accel variance 1.9–5.3 × 10⁻⁴ (m/s²)²; the largest accel one is the bridge's covariance default (its gyro default is the driving value, under odometry noise below). Gravity reads 9.29 m/s², 5.6% low. The gyro Z offset left after the 1 s start-up measurement drifted between −0.02 and −0.06 °/s, which is −5.5° of heading over the run if uncorrected. Samples 20.0 ± 0.2 ms apart. |
 | [02](imu/2026-11-23-run02-three-left-turns-by-hand.csv) | Three left turns by hand, from and back to a straight edge | 1082.7° integrated for 1080° (0.25%, within how well the turns could be lined up by hand), at up to 98 °/s. No yaw scale correction needed at this resolution. |
+
+## Odometry calibration ([odometry/](odometry/))
+
+`tools/odom_drive.py` drives a set distance or angle by `/odom`, stops, and prints where `/odom` thinks the robot ended; each run was then measured on the floor. Straight runs went 1 m along a strip of masking tape, measured at a flag on the deck's front centre (and one on its rear centre, from run 2). Spins were two full turns on the spot; the flag's straight-line distance d from its starting tick gives the extra angle, 2·asin(d / 2R) with R = 120 mm, the deck's radius. Every run: on the battery (11.35 V), on a hard floor, bumper arc not fitted yet. Each run and its reading: [2026-11-25-floor-calibration.csv](odometry/2026-11-25-floor-calibration.csv).
+
+| Wheels in robot.yaml | Straight 1 m: measured ÷ `/odom` | Two turns: measured ÷ `/odom` |
+| --- | --- | --- |
+| Caliper: 68.0 mm diameter, 180 mm apart (runs 1–7) | 0.983–0.987 (3 runs) | 1.040–1.042 (4 runs, left and right alike) |
+| Floor: 67.0 mm, 170.4 mm apart (runs 8–12) | 0.998 (2 runs) | 1.001–1.002 (3 runs) |
+
+The floor values come from the averages of runs 1–7: the wheels roll as if they were 67.0 mm across, probably because the tyres flatten under the robot's weight, and the robot turns as if they were 170.4 mm apart, not the 180 mm between the tyre centres, probably because the tyres grip nearer their inner edges. The tape readings were to the nearest 1/8 in (3 mm, 0.3% of a metre), so the remaining 0.2% is at the limit of what these runs can show. The sideways drift on the straight runs went both ways (29 mm right to 3 mm left) and didn't turn the robot, so it came from lining up the start, not from unequal wheels.
+
+## Odometry and IMU noise
+
+Recorded on the Pi with `ros2 bag record -o ~/bags/odom_noise_2026-11-25 /odom /joint_states /imu/data_raw /cmd_vel /battery` (outside the repo): 30 s untouched, then `tools/odom_drive.py` driving 1 m forward and back twice, and two full turns each way twice, with the floor-calibrated wheels. One more drive ran with the motor switch off, so it didn't move and doesn't count. Measured with `python3 tools/odom_imu_noise.py <bag dir>` (ROS 2 sourced), which drops each run's first second and last half second and takes each reading's spread about that run's own average.
+
+| Reading | Still | Straight at 0.1 m/s | Spinning at 0.5 rad/s |
+| --- | --- | --- | --- |
+| `/odom` speed | 0 | 1.5 × 10⁻³ m/s (variance 2.2 × 10⁻⁶) | 1.4 × 10⁻³ m/s |
+| `/odom` turn rate | 0 | 1.8 × 10⁻² rad/s (variance 3.1 × 10⁻⁴) | 1.7 × 10⁻² rad/s |
+| Gyro z | 5.6 × 10⁻⁴ rad/s (variance 3.2 × 10⁻⁷) | 2.0 × 10⁻² rad/s (variance 4.1 × 10⁻⁴) | 1.8 × 10⁻² rad/s |
+
+- **The odometry's spread is the encoders' rounding.** One count in a 20 ms reading is 4.3 mm/s of wheel speed, and the two wheels' counts differ by one now and then, which is 0.025 rad/s of turn rate. It isn't real wobble: the odometry's and the gyro's turn rates differ by 2.8 × 10⁻² rad/s, the spread of two independent readings.
+- **The gyro is about 35 times noisier while driving than still,** from the motors' vibration.
+- **The covariance defaults are the straight-run values:** `wheel_odometry`'s `linear_velocity_variance` 2.2 × 10⁻⁶ and `angular_velocity_variance` 3.1 × 10⁻⁴, and `pico_bridge`'s `gyro_variance` 4.1 × 10⁻⁴. The still value it replaced, 4.5 × 10⁻⁷, made the gyro look 1,000 times better than it is while driving.
+- **The gyro reads about 0.4% low.** It read 0.35–0.41% less than `/odom` on all four spins (720.4° against 722.9°, for example), and `/odom` is within about 0.1% of the floor measurements. The hand turns in IMU run 02 read 0.25% high. Both are well within the chip's ±3% sensitivity tolerance, so the gyro isn't rescaled.
+
