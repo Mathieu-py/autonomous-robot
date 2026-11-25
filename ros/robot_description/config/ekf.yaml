@@ -1,0 +1,25 @@
+# robot_localization's EKF, the yardstick for our own: fuses the wheels' speed
+# and turn rate with the gyro's turn rate. Publishes /odometry/filtered.
+ekf_filter_node:
+  ros__parameters:
+    frequency: 50.0
+    two_d_mode: true
+    publish_tf: false  # wheel_odometry publishes odom -> base_link
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    # Order: x y z, roll pitch yaw, vx vy vz, vroll vpitch vyaw, ax ay az.
+    # vy is always 0 from the wheels: the robot can't slide sideways.
+    odom0: /odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, true,
+                   false, false, false]
+    imu0: /imu/data_raw
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
