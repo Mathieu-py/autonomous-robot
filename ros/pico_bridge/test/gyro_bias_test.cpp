@@ -8,12 +8,12 @@ using Progress = GyroBias::Progress;
 
 namespace {
 
-constexpr double kMaxSpread = 0.035;
+constexpr double kMaxSpreadRadps = 0.035;
 
 }  // namespace
 
 TEST(GyroBias, AveragesAStillWindow) {
-  GyroBias bias(4, kMaxSpread);
+  GyroBias bias(4, kMaxSpreadRadps);
   EXPECT_EQ(bias.add({0.010, -0.020, -0.050}), Progress::kMeasuring);
   EXPECT_EQ(bias.add({0.012, -0.022, -0.054}), Progress::kMeasuring);
   EXPECT_EQ(bias.add({0.010, -0.020, -0.050}), Progress::kMeasuring);
@@ -24,7 +24,7 @@ TEST(GyroBias, AveragesAStillWindow) {
 }
 
 TEST(GyroBias, RemovesTheOffset) {
-  GyroBias bias(1, kMaxSpread);
+  GyroBias bias(1, kMaxSpreadRadps);
   bias.add({0.01, 0.02, -0.05});
   const Vector3 corrected = bias.remove_from({0.01, 0.02, 0.45});
   EXPECT_NEAR(corrected.x, 0.0, 1e-12);
@@ -33,7 +33,7 @@ TEST(GyroBias, RemovesTheOffset) {
 }
 
 TEST(GyroBias, RestartsWhenTheRobotTurns) {
-  GyroBias bias(3, kMaxSpread);
+  GyroBias bias(3, kMaxSpreadRadps);
   bias.add({0.0, 0.0, -0.05});
   EXPECT_EQ(bias.add({0.0, 0.0, 0.10}), Progress::kMovedSoRestarted);
   EXPECT_FALSE(bias.is_ready());
@@ -45,7 +45,7 @@ TEST(GyroBias, RestartsWhenTheRobotTurns) {
 }
 
 TEST(GyroBias, KeepsTheFirstOffsetOnceReady) {
-  GyroBias bias(1, kMaxSpread);
+  GyroBias bias(1, kMaxSpreadRadps);
   bias.add({0.0, 0.0, -0.05});
   EXPECT_EQ(bias.add({0.0, 0.0, 1.0}), Progress::kReady);
   EXPECT_NEAR(bias.bias().z, -0.05, 1e-12);

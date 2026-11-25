@@ -43,9 +43,10 @@ class DiffDriveOdometry {
   // starting angles, so the pose starts at zero wherever the wheels are.
   void update(double left_angle_rad, double right_angle_rad) {
     if (last_angles_) {
-      const double radius = geometry_.wheel_radius_m();
-      move_along_arc((left_angle_rad - last_angles_->left_rad) * radius,
-                     (right_angle_rad - last_angles_->right_rad) * radius);
+      const double wheel_radius_m = geometry_.wheel_radius_m();
+      move_along_arc(
+          (left_angle_rad - last_angles_->left_rad) * wheel_radius_m,
+          (right_angle_rad - last_angles_->right_rad) * wheel_radius_m);
     }
     last_angles_ = WheelAngles{left_angle_rad, right_angle_rad};
   }
@@ -67,9 +68,9 @@ class DiffDriveOdometry {
       pose_.x_m += distance * std::cos(yaw);
       pose_.y_m += distance * std::sin(yaw);
     } else {
-      const double radius = distance / turn;
-      pose_.x_m += radius * (std::sin(yaw + turn) - std::sin(yaw));
-      pose_.y_m -= radius * (std::cos(yaw + turn) - std::cos(yaw));
+      const double turn_radius_m = distance / turn;
+      pose_.x_m += turn_radius_m * (std::sin(yaw + turn) - std::sin(yaw));
+      pose_.y_m -= turn_radius_m * (std::cos(yaw + turn) - std::cos(yaw));
     }
     pose_.yaw_rad = std::remainder(yaw + turn, 2.0 * std::numbers::pi);
   }

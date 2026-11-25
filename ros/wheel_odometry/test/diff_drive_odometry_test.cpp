@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <numbers>
 
 using wheel_odometry::DiffDriveOdometry;
@@ -44,6 +45,18 @@ TEST(DiffDriveOdometry, DrivesStraightAhead) {
   EXPECT_NEAR(odometry.pose().x_m, 1.0, 1e-9);
   EXPECT_NEAR(odometry.pose().y_m, 0.0, 1e-9);
   EXPECT_NEAR(odometry.pose().yaw_rad, 0.0, 1e-9);
+}
+
+TEST(DiffDriveOdometry, DrivesStraightAlongItsHeading) {
+  DiffDriveOdometry odometry(kGeometry);
+  odometry.update(0.0, 0.0);
+  // 30 degrees left on the spot, then 1 m straight.
+  const double turn_m = kPi / 6.0 * kGeometry.wheel_separation_m / 2;
+  odometry.update(angle_for(-turn_m), angle_for(turn_m));
+  odometry.update(angle_for(-turn_m + 1.0), angle_for(turn_m + 1.0));
+  EXPECT_NEAR(odometry.pose().x_m, std::sqrt(3.0) / 2.0, 1e-9);
+  EXPECT_NEAR(odometry.pose().y_m, 0.5, 1e-9);
+  EXPECT_NEAR(odometry.pose().yaw_rad, kPi / 6.0, 1e-9);
 }
 
 TEST(DiffDriveOdometry, SpinsLeftOnTheSpot) {

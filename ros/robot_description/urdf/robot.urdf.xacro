@@ -15,7 +15,10 @@
   <xacro:property name="caster_x" value="-0.090"/>
   <xacro:property name="caster_ball_radius" value="0.0079"/>
   <!-- On 6 mm standoffs on the upper deck, above the axle. -->
-  <xacro:property name="imu_z" value="0.090"/>
+  <xacro:property name="imu_standoff" value="0.006"/>
+  <xacro:property name="imu_board_thickness" value="0.0016"/>
+  <xacro:property name="imu_z"
+      value="${upper_deck_bottom + deck_thickness + imu_standoff + imu_board_thickness / 2}"/>
 
   <material name="deck"><color rgba="0.85 0.85 0.85 1"/></material>
   <material name="tyre"><color rgba="0.1 0.1 0.1 1"/></material>
@@ -73,7 +76,8 @@
 
   <link name="imu_link">
     <visual>
-      <geometry><box size="0.026 0.018 0.0016"/></geometry>
+      <!-- The chip's X runs across the board, Y along its 26 mm length. -->
+      <geometry><box size="0.0178 0.026 ${imu_board_thickness}"/></geometry>
       <material name="imu"/>
     </visual>
   </link>

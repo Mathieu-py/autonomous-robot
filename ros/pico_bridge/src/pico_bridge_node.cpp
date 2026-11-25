@@ -21,7 +21,7 @@ namespace pico_bridge {
 
 constexpr double kRadiansPerRev = 2.0 * std::numbers::pi;
 constexpr double kDegreesPerRadian = 180.0 / std::numbers::pi;
-constexpr size_t kGyroBiasSamples = 50;            // 1 s at 50 Hz
+constexpr size_t kGyroBiasWindowSize = 50;         // 1 s at 50 Hz
 constexpr double kGyroBiasMaxSpreadRadps = 0.035;  // 2 deg/s
 constexpr double kImuSilenceS = 1.0;
 
@@ -33,10 +33,11 @@ class PicoBridgeNode : public rclcpp::Node {
         // No defaults: robot_description's config/robot.yaml is the one copy.
         geometry_{declare_parameter<double>("wheel_diameter_m"),
                   declare_parameter<double>("wheel_separation_m")},
-        motors_{.is_left_first_motor = declare_parameter<std::string>(
-                                           "left_motor", "first") == "first",
-                .is_left_reversed = declare_parameter("left_reversed", false),
-                .is_right_reversed = declare_parameter("right_reversed", true)},
+        motor_mapping_{
+            .is_left_first_motor =
+                declare_parameter<std::string>("left_motor") == "first",
+            .is_left_reversed = declare_parameter<bool>("left_reversed"),
+            .is_right_reversed = declare_parameter<bool>("right_reversed")},
         ticks_per_rev_(declare_parameter<double>("ticks_per_rev")),
         cmd_vel_timeout_(rclcpp::Duration::from_seconds(
             declare_parameter("cmd_vel_timeout_s", 1.0))),
@@ -45,7 +46,7 @@ class PicoBridgeNode : public rclcpp::Node {
         gyro_variance_(declare_parameter("gyro_variance", 4.5e-7)),
         accel_variance_(declare_parameter("accel_variance", 5.3e-4)),
         serial_(port_path_),
-        gyro_bias_(kGyroBiasSamples, kGyroBiasMaxSpreadRadps),
+        gyro_bias_(kGyroBiasWindowSize, kGyroBiasMaxSpreadRadps),
         last_cmd_vel_time_(now()),
         last_imu_time_(now()) {
     cmd_vel_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
@@ -77,7 +78,7 @@ class PicoBridgeNode : public rclcpp::Node {
     }
     while (const auto line = take_line(received_)) {
       if (const auto status = parse_status_line(*line)) {
-        publish_status(*status);
+        handle_status(*status);
       } else if (const auto sample = parse_imu_line(*line)) {
         handle_imu(*sample);
       } else if (is_shutdown_request(*line)) {
@@ -97,25 +98,31 @@ class PicoBridgeNode : public rclcpp::Node {
       RCLCPP_INFO(get_logger(), "IMU data is back");
       is_imu_silent_ = false;
     }
-    switch (gyro_bias_.add(sample.gyro_radps)) {
+    if (!gyro_bias_.is_ready()) {
+      measure_gyro_bias(sample.gyro_radps);
+    }
+    if (gyro_bias_.is_ready()) {
+      publish_imu(sample);
+    }
+  }
+
+  void measure_gyro_bias(const Vector3& gyro_radps) {
+    switch (gyro_bias_.add(gyro_radps)) {
       case GyroBias::Progress::kMeasuring:
-        return;
+        break;
       case GyroBias::Progress::kMovedSoRestarted:
         RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
                              "The robot moved while measuring the gyro "
                              "offset; keep it still");
-        return;
-      case GyroBias::Progress::kReady:
-        if (!has_logged_gyro_bias_) {
-          const Vector3& bias = gyro_bias_.bias();
-          RCLCPP_INFO(get_logger(), "Gyro offset (deg/s): %.2f %.2f %.2f",
-                      bias.x * kDegreesPerRadian, bias.y * kDegreesPerRadian,
-                      bias.z * kDegreesPerRadian);
-          has_logged_gyro_bias_ = true;
-        }
         break;
+      case GyroBias::Progress::kReady: {
+        const Vector3 bias = gyro_bias_.bias();
+        RCLCPP_INFO(get_logger(), "Gyro offset (deg/s): %.2f %.2f %.2f",
+                    bias.x * kDegreesPerRadian, bias.y * kDegreesPerRadian,
+                    bias.z * kDegreesPerRadian);
+        break;
+      }
     }
-    publish_imu(sample);
   }
 
   void publish_imu(const ImuSample& sample) {
@@ -168,46 +175,59 @@ class PicoBridgeNode : public rclcpp::Node {
         now() - last_cmd_vel_time_ <= cmd_vel_timeout_;
     const geometry_msgs::msg::Twist twist =
         is_cmd_vel_fresh ? last_cmd_vel_ : geometry_msgs::msg::Twist();
-    const MotorPair motors = motors_.to_motors(
+    const MotorPair motors = motor_mapping_.to_motors(
         wheel_rps_from_twist(twist.linear.x, twist.angular.z, geometry_));
     return format_command(motors.first, motors.second);
   }
 
-  void publish_status(const PicoStatus& status) {
+  void handle_status(const PicoStatus& status) {
+    const rclcpp::Time stamp = now();
+    publish_joint_states(status, stamp);
+    publish_battery(status.battery_volts, stamp);
+    log_stop_change(status.stop_reason);
+  }
+
+  void publish_joint_states(const PicoStatus& status,
+                            const rclcpp::Time& stamp) {
     const WheelPair counts =
-        motors_.to_wheels({static_cast<double>(status.first_count),
-                           static_cast<double>(status.second_count)});
+        motor_mapping_.to_wheels({static_cast<double>(status.first_count),
+                                  static_cast<double>(status.second_count)});
     const WheelPair rps =
-        motors_.to_wheels({status.first_rps, status.second_rps});
+        motor_mapping_.to_wheels({status.first_rps, status.second_rps});
 
     sensor_msgs::msg::JointState joints;
-    joints.header.stamp = now();
+    joints.header.stamp = stamp;
     joints.name = {"left_wheel_joint", "right_wheel_joint"};
     joints.position = {counts.left / ticks_per_rev_ * kRadiansPerRev,
                        counts.right / ticks_per_rev_ * kRadiansPerRev};
     joints.velocity = {rps.left * kRadiansPerRev, rps.right * kRadiansPerRev};
     joint_state_publisher_->publish(joints);
+  }
 
+  void publish_battery(double volts, const rclcpp::Time& stamp) {
     sensor_msgs::msg::BatteryState battery;
-    battery.header.stamp = joints.header.stamp;
-    battery.voltage = static_cast<float>(status.battery_volts);
+    battery.header.stamp = stamp;
+    battery.voltage = static_cast<float>(volts);
     battery.present = true;
     battery_publisher_->publish(battery);
+  }
 
-    if (status.stop_reason != last_stop_reason_) {
-      if (status.stop_reason == kNoStopReason) {
-        RCLCPP_INFO(get_logger(), "Pico stop cleared");
-      } else {
-        RCLCPP_WARN(get_logger(), "Pico stopped the motors: %s",
-                    status.stop_reason.c_str());
-      }
-      last_stop_reason_ = status.stop_reason;
+  void log_stop_change(const std::string& stop_reason) {
+    if (stop_reason == last_stop_reason_) {
+      return;
     }
+    if (stop_reason == kNoStopReason) {
+      RCLCPP_INFO(get_logger(), "Pico stop cleared");
+    } else {
+      RCLCPP_WARN(get_logger(), "Pico stopped the motors: %s",
+                  stop_reason.c_str());
+    }
+    last_stop_reason_ = stop_reason;
   }
 
   std::string port_path_;
   DriveGeometry geometry_;
-  MotorMapping motors_;
+  MotorMapping motor_mapping_;
   double ticks_per_rev_;
   rclcpp::Duration cmd_vel_timeout_;
   std::string imu_frame_id_;
@@ -215,7 +235,6 @@ class PicoBridgeNode : public rclcpp::Node {
   double accel_variance_;
   SerialPort serial_;
   GyroBias gyro_bias_;
-  bool has_logged_gyro_bias_ = false;
   bool is_imu_silent_ = false;
   std::string received_;
   std::string last_stop_reason_ = kNoStopReason;

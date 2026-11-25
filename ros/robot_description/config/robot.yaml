@@ -5,3 +5,10 @@
     wheel_diameter_m: 0.068
     wheel_separation_m: 0.180
     ticks_per_rev: 2473.0
+
+# Which Pico motor turns each wheel, and which runs backwards.
+pico_bridge:
+  ros__parameters:
+    left_motor: first  # or second
+    left_reversed: false
+    right_reversed: true

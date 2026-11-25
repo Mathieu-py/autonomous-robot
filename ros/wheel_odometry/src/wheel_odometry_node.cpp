@@ -1,6 +1,7 @@
 // /joint_states to /odom and the odom -> base_link transform.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iterator>
 #include <memory>
@@ -24,6 +25,15 @@ constexpr char kRightJoint[] = "right_wheel_joint";
 // them.
 constexpr double kUnobservedVariance = 1e6;
 
+// Rows and columns of an odometry covariance.
+enum class Axis { kX, kY, kZ, kRoll, kPitch, kYaw };
+
+void set_variance(std::array<double, 36>& covariance, Axis axis,
+                  double variance) {
+  const auto i = static_cast<size_t>(axis);
+  covariance[i * 6 + i] = variance;
+}
+
 class WheelOdometryNode : public rclcpp::Node {
  public:
   WheelOdometryNode()
@@ -33,9 +43,7 @@ class WheelOdometryNode : public rclcpp::Node {
                   declare_parameter<double>("wheel_separation_m")},
         odom_frame_(declare_parameter("odom_frame", "odom")),
         base_frame_(declare_parameter("base_frame", "base_link")),
-        // Off once the EKF publishes this transform.
-        should_publish_tf_(declare_parameter("publish_tf", true)),
-        // Placeholders until step 4 measures them.
+        // Placeholders until measured.
         pose_variance_(declare_parameter("pose_variance", 1e-3)),
         linear_velocity_variance_(
             declare_parameter("linear_velocity_variance", 1e-4)),
@@ -43,7 +51,8 @@ class WheelOdometryNode : public rclcpp::Node {
             declare_parameter("angular_velocity_variance", 1e-3)),
         odometry_(geometry_) {
     odom_publisher_ = create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-    if (should_publish_tf_) {
+    // Off once the EKF publishes this transform.
+    if (declare_parameter("publish_tf", true)) {
       tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     }
     joint_state_subscription_ =
@@ -102,18 +111,17 @@ class WheelOdometryNode : public rclcpp::Node {
     odom.pose.pose.orientation.w = std::cos(pose.yaw_rad / 2.0);
     odom.twist.twist.linear.x = velocity.linear_mps;
     odom.twist.twist.angular.z = velocity.angular_radps;
-    // Diagonals of 6x6 matrices ordered x, y, z, roll, pitch, yaw.
-    for (const size_t i : {2, 3, 4}) {
-      odom.pose.covariance[i * 7] = kUnobservedVariance;
-      odom.twist.covariance[i * 7] = kUnobservedVariance;
+    for (const Axis axis : {Axis::kZ, Axis::kRoll, Axis::kPitch}) {
+      set_variance(odom.pose.covariance, axis, kUnobservedVariance);
+      set_variance(odom.twist.covariance, axis, kUnobservedVariance);
     }
-    for (const size_t i : {0, 1, 5}) {
-      odom.pose.covariance[i * 7] = pose_variance_;
+    for (const Axis axis : {Axis::kX, Axis::kY, Axis::kYaw}) {
+      set_variance(odom.pose.covariance, axis, pose_variance_);
     }
-    odom.twist.covariance[0] = linear_velocity_variance_;
-    odom.twist.covariance[7] =
-        linear_velocity_variance_;  // sideways, always ~0
-    odom.twist.covariance[35] = angular_velocity_variance_;
+    set_variance(odom.twist.covariance, Axis::kX, linear_velocity_variance_);
+    // Sideways speed, always ~0.
+    set_variance(odom.twist.covariance, Axis::kY, linear_velocity_variance_);
+    set_variance(odom.twist.covariance, Axis::kYaw, angular_velocity_variance_);
     odom_publisher_->publish(odom);
 
     if (tf_broadcaster_) {
@@ -130,7 +138,6 @@ class WheelOdometryNode : public rclcpp::Node {
   DriveGeometry geometry_;
   std::string odom_frame_;
   std::string base_frame_;
-  bool should_publish_tf_;
   double pose_variance_;
   double linear_velocity_variance_;
   double angular_velocity_variance_;

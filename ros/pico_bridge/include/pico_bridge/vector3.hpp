@@ -31,7 +31,7 @@ inline Vector3 max(const Vector3& a, const Vector3& b) {
   return {std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z)};
 }
 
-inline double largest_axis(const Vector3& v) {
+inline double largest_component(const Vector3& v) {
   return std::max({v.x, v.y, v.z});
 }
 

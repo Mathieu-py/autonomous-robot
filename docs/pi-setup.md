@@ -34,7 +34,7 @@ These are still 24.04 packages. Don't run `do-release-upgrade`, which the login 
 
 ## 2. The robot's packages
 
-Three ROS packages: `pico_bridge` (the Pico's serial link), `robot_description` (the URDF and `config/robot.yaml`, the one copy of the wheel diameter, track width and ticks per rev) and `wheel_odometry`.
+Three ROS packages: `pico_bridge` (the Pico's serial link), `robot_description` (the URDF and `config/robot.yaml`, the one copy of the wheel diameter, track width, ticks per rev and motor wiring) and `wheel_odometry`.
 
 ```bash
 mkdir -p ~/robot_ws/src && cd ~/robot_ws/src
