@@ -1,2 +1,3 @@
-# Google C++ style; run: clang-format -i firmware/src/*.h firmware/src/*.cpp
+# Google C++ style; run from the repo root:
+#   git ls-files '*.h' '*.cpp' '*.hpp' | xargs clang-format -i
 BasedOnStyle: Google

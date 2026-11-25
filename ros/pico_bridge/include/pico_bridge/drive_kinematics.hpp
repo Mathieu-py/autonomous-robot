@@ -1,6 +1,8 @@
 #pragma once
 
 #include <numbers>
+#include <stdexcept>
+#include <string>
 
 // Pure helpers: robot speeds to wheel speeds, and wheels to the Pico's motors.
 namespace pico_bridge {
@@ -29,6 +31,14 @@ inline WheelPair wheel_rps_from_twist(double linear_mps, double angular_radps,
   const double metres_per_rev = std::numbers::pi * geometry.wheel_diameter_m;
   return {(linear_mps - angular_radps * half_track) / metres_per_rev,
           (linear_mps + angular_radps * half_track) / metres_per_rev};
+}
+
+// "first" or "second", as robot.yaml names a Pico motor; anything else throws.
+inline bool is_first_motor(const std::string& motor) {
+  if (motor != "first" && motor != "second") {
+    throw std::invalid_argument("A motor is first or second, not " + motor);
+  }
+  return motor == "first";
 }
 
 // Which Pico motor turns each wheel, and whether it runs backwards.

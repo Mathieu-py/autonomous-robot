@@ -200,7 +200,7 @@ int main() {
     watchdog_update();
     const absolute_time_t now = get_absolute_time();
     const uint64_t now_us = to_us_since_boot(now);
-    const auto uptime_ms = static_cast<int64_t>(now_us / 1000);
+    const auto now_ms = static_cast<int64_t>(now_us / 1000);
 
     if (!has_serial_connected && stdio_usb_connected()) {
       has_serial_connected = true;
@@ -211,13 +211,13 @@ int main() {
     }
 
     if (!motor_test) {
-      read_commands(command_reader, latest_command, uptime_ms);
+      read_commands(command_reader, latest_command, now_ms);
     }
 
     if (const auto period_seconds = control_timer.tick(now_us)) {
-      const Target target =
-          motor_test ? motor_test->target(now)
-                     : speed_target(latest_command.current(uptime_ms));
+      const Target target = motor_test
+                                ? motor_test->target(now)
+                                : speed_target(latest_command.current(now_ms));
       const PeriodReport report = drivetrain.run_period(
           target, read_hardware(first_encoder, second_encoder),
           *period_seconds);

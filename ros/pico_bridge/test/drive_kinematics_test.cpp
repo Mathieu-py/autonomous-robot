@@ -3,8 +3,10 @@
 #include <gtest/gtest.h>
 
 #include <numbers>
+#include <stdexcept>
 
 using pico_bridge::DriveGeometry;
+using pico_bridge::is_first_motor;
 using pico_bridge::MotorMapping;
 using pico_bridge::wheel_rps_from_twist;
 
@@ -26,6 +28,12 @@ TEST(WheelRpsFromTwist, TurningLeftOnTheSpotSpinsWheelsOpposite) {
   const auto wheels = wheel_rps_from_twist(0.0, 1.0, kGeometry);
   EXPECT_NEAR(wheels.left, -0.1 / kMetresPerRev, 1e-9);
   EXPECT_NEAR(wheels.right, 0.1 / kMetresPerRev, 1e-9);
+}
+
+TEST(IsFirstMotor, RejectsAnythingButFirstOrSecond) {
+  EXPECT_TRUE(is_first_motor("first"));
+  EXPECT_FALSE(is_first_motor("second"));
+  EXPECT_THROW(is_first_motor("frist"), std::invalid_argument);
 }
 
 TEST(MotorMapping, OurRobotReversesTheRightMotor) {

@@ -1,4 +1,6 @@
 """Colours, styling and the log reader shared by the plotting tools."""
+import sys
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -14,18 +16,21 @@ ORANGE = "#eb6834"
 
 plt.rcParams.update({
     "font.size": 10,
+    "figure.facecolor": SURFACE,
+    "axes.facecolor": SURFACE,
     "axes.edgecolor": GRID,
     "axes.labelcolor": INK_2,
+    "axes.titlecolor": INK,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.grid": True,
+    "axes.grid.axis": "y",
+    "grid.color": GRID,
+    "grid.linewidth": 0.8,
     "xtick.color": INK_2,
     "ytick.color": INK_2,
-    "axes.titlecolor": INK,
+    "legend.frameon": False,
 })
-
-
-def style_axes(ax, grid_axis="y"):
-    ax.set_facecolor(SURFACE)
-    ax.grid(axis=grid_axis, color=GRID, linewidth=0.8)
-    ax.spines[["top", "right"]].set_visible(False)
 
 
 def plot_target(ax, t, values, label):
@@ -44,7 +49,8 @@ def label_events(ax, events, fontsize):
 
 def read_log_rows(path, column_count, text_columns=0):
     """The firmware's CSV rows, also from a PuTTY log with other lines mixed in.
-    The last text_columns fields stay text; the rest are parsed as floats."""
+    The last text_columns fields stay text; the rest are parsed as floats.
+    Exits if there are none."""
     rows = []
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -57,4 +63,6 @@ def read_log_rows(path, column_count, text_columns=0):
                             + parts[len(numbers):])
             except ValueError:
                 continue
+    if not rows:
+        sys.exit(f"No {column_count}-column log lines found in {path}")
     return rows

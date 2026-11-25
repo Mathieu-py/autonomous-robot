@@ -4,63 +4,76 @@ each stop shaded and labelled.
 Usage: python3 tools/plot_safety.py <input.csv> <output.png> "<title>"
 """
 import sys
+from itertools import groupby
 
 import matplotlib.pyplot as plt
 
-from chart_style import (BLUE, INK, INK_2, ORANGE, STOP_FILL, SURFACE,
-                         label_events, plot_target, read_log_rows, style_axes)
+from chart_style import (BLUE, INK, INK_2, ORANGE, STOP_FILL, label_events,
+                         plot_target, read_log_rows)
 
-if len(sys.argv) != 4:
-    sys.exit(__doc__)
-log_path, out_path, title = sys.argv[1], sys.argv[2], sys.argv[3]
+LOW_BATTERY_VOLTS = 10.5  # the firmware's kLowBatteryVolts
 
-rows = read_log_rows(log_path, 8, text_columns=1)
-if not rows:
-    sys.exit(f"No safety log lines found in {log_path}")
 
-(t_ms, setpoint, first_speed, first_power, second_speed, second_power,
- battery, stops) = zip(*rows)
-t = [ms / 1000 for ms in t_ms]
+def stop_spans(t, stops):
+    """(start, end, reason) for each run of one stop reason; it ends at the
+    next reading, or the last one."""
+    spans = []
+    start = 0
+    for reason, run in groupby(stops):
+        end = start + len(list(run))
+        if reason != "none":
+            spans.append((t[start], t[min(end, len(t) - 1)], reason))
+        start = end
+    return spans
 
-fig, (ax_speed, ax_power, ax_battery) = plt.subplots(
-    3, 1, figsize=(11, 8), sharex=True, facecolor=SURFACE,
-    gridspec_kw={"height_ratios": [3, 2, 2], "hspace": 0.12})
 
-# Shade each stop and label it with its reason.
-stop_spans = []
-start = None
-for i, reason in enumerate(stops):
-    if reason != "none" and start is None:
-        start = i
-    if start is not None and (reason == "none" or i == len(stops) - 1):
-        stop_spans.append((t[start], t[i], stops[start]))
-        start = None
-for ax in (ax_speed, ax_power, ax_battery):
-    style_axes(ax)
-    for begin, end, _ in stop_spans:
-        ax.axvspan(begin, end, color=STOP_FILL, linewidth=0, zorder=0)
-label_events(ax_speed, [(begin, reason) for begin, _, reason in stop_spans],
-             fontsize=8)
+def main():
+    if len(sys.argv) != 4:
+        sys.exit(__doc__)
+    log_path, out_path, title = sys.argv[1], sys.argv[2], sys.argv[3]
 
-plot_target(ax_speed, t, setpoint, "Setpoint")
-ax_speed.plot(t, first_speed, color=BLUE, linewidth=1.5, label="First wheel")
-ax_speed.plot(t, second_speed, color=ORANGE, linewidth=1.5,
-              label="Second wheel")
-ax_speed.set_ylabel("Speed (rev/s)")
-ax_speed.set_title(title, loc="left", fontsize=12, pad=10)
-ax_speed.legend(loc="lower right", frameon=False, ncol=3)
+    rows = read_log_rows(log_path, 8, text_columns=1)
+    (t_ms, setpoint, first_speed, first_power, second_speed, second_power,
+     battery, stops) = zip(*rows)
+    t = [ms / 1000 for ms in t_ms]
 
-ax_power.plot(t, first_power, color=BLUE, linewidth=1.5)
-ax_power.plot(t, second_power, color=ORANGE, linewidth=1.5)
-ax_power.set_ylabel("Motor power")
+    fig, (ax_speed, ax_power, ax_battery) = plt.subplots(
+        3, 1, figsize=(11, 8), sharex=True,
+        gridspec_kw={"height_ratios": [3, 2, 2], "hspace": 0.12})
 
-ax_battery.plot(t, battery, color=INK, linewidth=1.5)
-ax_battery.axhline(10.5, color=INK_2, linewidth=1, linestyle=(0, (2, 2)))
-ax_battery.annotate("10.5 V cutoff", (t[-1], 10.5), xytext=(0, 3),
-                    textcoords="offset points", color=INK_2, ha="right",
-                    va="bottom")
-ax_battery.set_ylabel("Battery (V, filtered)")
-ax_battery.set_xlabel("Time since test start (s); shaded = motors stopped")
+    spans = stop_spans(t, stops)
+    for ax in (ax_speed, ax_power, ax_battery):
+        for begin, end, _ in spans:
+            ax.axvspan(begin, end, color=STOP_FILL, linewidth=0, zorder=0)
+    label_events(ax_speed, [(begin, reason) for begin, _, reason in spans],
+                 fontsize=8)
 
-fig.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=SURFACE)
-print(f"{len(rows)} samples, {len(stop_spans)} stops, plotted to {out_path}")
+    plot_target(ax_speed, t, setpoint, "Setpoint")
+    ax_speed.plot(t, first_speed, color=BLUE, linewidth=1.5,
+                  label="First wheel")
+    ax_speed.plot(t, second_speed, color=ORANGE, linewidth=1.5,
+                  label="Second wheel")
+    ax_speed.set_ylabel("Speed (rev/s)")
+    ax_speed.set_title(title, loc="left", fontsize=12, pad=10)
+    ax_speed.legend(loc="lower right", ncol=3)
+
+    ax_power.plot(t, first_power, color=BLUE, linewidth=1.5)
+    ax_power.plot(t, second_power, color=ORANGE, linewidth=1.5)
+    ax_power.set_ylabel("Motor power")
+
+    ax_battery.plot(t, battery, color=INK, linewidth=1.5)
+    ax_battery.axhline(LOW_BATTERY_VOLTS, color=INK_2, linewidth=1,
+                       linestyle=(0, (2, 2)))
+    ax_battery.annotate(f"{LOW_BATTERY_VOLTS} V cutoff",
+                        (t[-1], LOW_BATTERY_VOLTS), xytext=(0, 3),
+                        textcoords="offset points", color=INK_2, ha="right",
+                        va="bottom")
+    ax_battery.set_ylabel("Battery (V, filtered)")
+    ax_battery.set_xlabel("Time since test start (s); shaded = motors stopped")
+
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    print(f"{len(rows)} samples, {len(spans)} stops, plotted to {out_path}")
+
+
+if __name__ == "__main__":
+    main()

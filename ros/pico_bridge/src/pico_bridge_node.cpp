@@ -35,7 +35,7 @@ class PicoBridgeNode : public rclcpp::Node {
                   declare_parameter<double>("wheel_separation_m")},
         motor_mapping_{
             .is_left_first_motor =
-                declare_parameter<std::string>("left_motor") == "first",
+                is_first_motor(declare_parameter<std::string>("left_motor")),
             .is_left_reversed = declare_parameter<bool>("left_reversed"),
             .is_right_reversed = declare_parameter<bool>("right_reversed")},
         ticks_per_rev_(declare_parameter<double>("ticks_per_rev")),

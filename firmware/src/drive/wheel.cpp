@@ -1,7 +1,9 @@
 #include "drive/wheel.h"
 
 void Wheel::measure(int32_t count, float period_seconds) {
-  const int32_t ticks = count - state_.count;
+  // Unsigned, so a count that wraps past ±2^31 still gives the right step.
+  const auto ticks = static_cast<int32_t>(static_cast<uint32_t>(count) -
+                                          static_cast<uint32_t>(state_.count));
   state_.speed_rps =
       static_cast<float>(ticks) / period_seconds / ticks_per_rev_;
   state_.count = count;

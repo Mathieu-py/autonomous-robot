@@ -1,5 +1,5 @@
-# Drive geometry, the one copy: read by pico_bridge, wheel_odometry, the URDF
-# and, for ticks_per_rev, the firmware build.
+# Drive geometry, the one copy: read by pico_bridge, wheel_odometry, the URDF,
+# tools/plot_teleop.py and, for ticks_per_rev, the firmware build.
 /**:
   ros__parameters:
     wheel_diameter_m: 0.068

@@ -9,6 +9,9 @@ GEARBOX_DIAMETER = 36.95
 MOTOR_BODY_DIAMETER = 32.8           # motor and encoder behind the gearbox
 MOTOR_LENGTH = 56.75                 # gearbox front face to the encoder's back
 GEARBOX_FACE_TO_WHEEL = 16.7         # gearbox front face to the wheel's inner face
+GEARBOX_LENGTH = 24.0
+SHAFT_OFFSET = 6.9                   # gearbox centre above the shaft
+GEARBOX_HOLE_CIRCLE = 31.0           # 6 x M3, 4 mm deep (listings)
 
 # --- Wheel, measured ---
 WHEEL_DIAMETER = 68.0
@@ -80,6 +83,9 @@ PI_HOLES_LENGTH = 58.0
 PI_HOLES_WIDTH = 49.0
 PI_HOLE_INSET = 3.5                  # from the corner, on both edges
 PI_HOLE_DIAMETER = 2.7               # M2.5
+PI_USB_C_FROM_FRONT = 11.2           # from the edge nearest the holes
+PI_HEIGHT = 17.5                     # measured: board underside to the USB ports' top
+PI_USB_C_PLUG = (19.0, 15.0)         # measured: plug length, then room to bend
 
 # --- Raspberry Pi Pico 2 W, datasheet ---
 PICO_LENGTH = 51.0
@@ -87,6 +93,12 @@ PICO_WIDTH = 21.0
 PICO_HOLES_LENGTH = 47.0
 PICO_HOLES_WIDTH = 11.4
 PICO_HOLE_DIAMETER = 2.1
+
+# --- ELEGOO 5 x 7 cm perfboard, measured holes ---
+PERFBOARD_LENGTH = 70.0
+PERFBOARD_WIDTH = 50.0
+PERFBOARD_HOLES_LENGTH = 65.5        # centre spacing; holes Ø2.5
+PERFBOARD_HOLES_WIDTH = 46.0
 
 # --- Adafruit MPU-6050 (#3886), datasheet size, measured holes ---
 IMU_LENGTH = 26.0

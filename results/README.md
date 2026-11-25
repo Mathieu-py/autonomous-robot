@@ -10,7 +10,7 @@ CSVs are kept exactly as the firmware logged them, header included.
 
 ## PID speed loop ([pid/](pid/))
 
-Logged at 50 Hz by [firmware/src/main.cpp](../firmware/src/main.cpp). Columns: `t_ms` (since the test started), `target` (rev/s, see below), then each wheel's measured speed (rev/s, the average over the last 20 ms) and motor power (PWM fraction, -0.95 to +0.95). Plot with:
+Logged at 50 Hz in the firmware's speed test mode (`kMode = Mode::kSpeedTest`, [firmware/src/bench/motor_tests.cpp](../firmware/src/bench/motor_tests.cpp)). Columns: `t_ms` (since the test started), `target` (rev/s, see below), then each wheel's measured speed (rev/s, the average over the last 20 ms) and motor power (PWM fraction, -0.95 to +0.95). Plot with:
 
 ```bash
 python3 tools/plot_pid.py <input.csv> <output.png> "<title>"

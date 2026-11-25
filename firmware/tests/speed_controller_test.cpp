@@ -1,8 +1,8 @@
 #include "drive/speed_controller.h"
 
-#include <algorithm>
+#include <gtest/gtest.h>
 
-#include "check.h"
+#include <algorithm>
 
 namespace {
 
@@ -33,14 +33,14 @@ class SimulatedMotor {
   double speed_ = 0.0;
 };
 
-void test_ramp_limits_each_step_to_max_accel() {
+TEST(SetpointRamp, LimitsEachStepToMaxAccel) {
   SetpointRamp ramp(5.0f);
   const RampedSetpoint first = ramp.advance(1.0f, kPeriod);
-  CHECK_NEAR(first.for_next_period, 0.05f, 1e-6);
-  CHECK_NEAR(first.accel_for_next_period, 5.0f, 1e-4);
+  EXPECT_NEAR(first.for_next_period, 0.05f, 1e-6);
+  EXPECT_NEAR(first.accel_for_next_period, 5.0f, 1e-4);
 }
 
-void test_reaches_target_without_overshoot() {
+TEST(SpeedController, ReachesTargetWithoutOvershoot) {
   SetpointRamp ramp(5.0f);
   SpeedController controller(kGains, 0.95f);
   SimulatedMotor motor;
@@ -52,11 +52,11 @@ void test_reaches_target_without_overshoot() {
         controller.power_for_next_period(setpoint, measured, kPeriod));
     peak = std::max(peak, measured);
   }
-  CHECK_NEAR(measured, 1.0f, 0.005);
-  CHECK(peak < 1.01f);
+  EXPECT_NEAR(measured, 1.0f, 0.005);
+  EXPECT_LT(peak, 1.01f);
 }
 
-void test_brakes_once_stopped_at_both_moments() {
+TEST(SpeedController, BrakesOnceStoppedAtBothMoments) {
   SetpointRamp ramp(5.0f);
   SpeedController controller(kGains, 0.95f);
   for (int i = 0; i < 50; ++i) {
@@ -68,10 +68,10 @@ void test_brakes_once_stopped_at_both_moments() {
     power = controller.power_for_next_period(ramp.advance(0.0f, kPeriod), 0.0f,
                                              kPeriod);
   }
-  CHECK(power == 0.0f);
+  EXPECT_EQ(power, 0.0f);
 }
 
-void test_integral_does_not_wind_up_while_saturated() {
+TEST(SpeedController, IntegralDoesNotWindUpWhileSaturated) {
   SpeedController controller(kGains, 0.95f);
   const RampedSetpoint flat_out = {.at_last_reading = 2.5f,
                                    .for_next_period = 2.5f,
@@ -80,18 +80,10 @@ void test_integral_does_not_wind_up_while_saturated() {
   for (int i = 0; i < 100; ++i) {
     power = controller.power_for_next_period(flat_out, 0.0f, kPeriod);
   }
-  CHECK_NEAR(power, 0.95f, 1e-6);
+  EXPECT_NEAR(power, 0.95f, 1e-6);
 
   // Once at speed, a wound-up integral would hold the output saturated.
-  CHECK(controller.power_for_next_period(flat_out, 2.5f, kPeriod) < 0.95f);
+  EXPECT_LT(controller.power_for_next_period(flat_out, 2.5f, kPeriod), 0.95f);
 }
 
 }  // namespace
-
-int main() {
-  test_ramp_limits_each_step_to_max_accel();
-  test_reaches_target_without_overshoot();
-  test_brakes_once_stopped_at_both_moments();
-  test_integral_does_not_wind_up_while_saturated();
-  return report("speed_controller");
-}

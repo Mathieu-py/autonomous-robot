@@ -1,6 +1,14 @@
 #include "drive/drivetrain.h"
 
-#include "check.h"
+#include <gtest/gtest.h>
+
+#include <limits>
+#include <ostream>
+
+// Shows the reason's name when a check fails.
+inline void PrintTo(StopReason reason, std::ostream* os) {
+  *os << stop_reason_name(reason);
+}
 
 namespace {
 
@@ -29,49 +37,58 @@ Readings readings(int32_t first_count, int32_t second_count,
           .battery_volts = 12.0f};
 }
 
-void test_measures_speed_from_counts() {
+TEST(Drivetrain, MeasuresSpeedFromCounts) {
   Drivetrain drivetrain = make_drivetrain();
   // 2 ticks of 100 per rev in 0.02 s is 1 rev/s.
   const PeriodReport report =
       drivetrain.run_period(kForward, readings(2, -2), kPeriod);
-  CHECK_NEAR(report.first.speed_rps, 1.0f, 1e-4);
-  CHECK_NEAR(report.second.speed_rps, -1.0f, 1e-4);
+  EXPECT_NEAR(report.first.speed_rps, 1.0f, 1e-4);
+  EXPECT_NEAR(report.second.speed_rps, -1.0f, 1e-4);
 }
 
-void test_ramps_toward_a_speed_target() {
+TEST(Drivetrain, MeasuresSpeedAcrossACountWrap) {
+  constexpr int32_t kNearMax = std::numeric_limits<int32_t>::max() - 1;
+  Drivetrain drivetrain(Wheel(kConfig, kNearMax), Wheel(kConfig, 0));
+  // max - 1 to min + 1 is 3 ticks forward.
+  const PeriodReport report = drivetrain.run_period(
+      kForward, readings(std::numeric_limits<int32_t>::min() + 1, 0), kPeriod);
+  EXPECT_NEAR(report.first.speed_rps, 1.5f, 1e-4);
+}
+
+TEST(Drivetrain, RampsTowardASpeedTarget) {
   Drivetrain drivetrain = make_drivetrain();
   drivetrain.run_period(kForward, readings(0, 0), kPeriod);
   const PeriodReport report =
       drivetrain.run_period(kForward, readings(0, 0), kPeriod);
   // 5 rev/s² ramp: 0 then 0.1 rev/s, so 0.05 over the period just measured.
-  CHECK(report.stop_reason == StopReason::kNone);
-  CHECK_NEAR(report.setpoint_rps, 0.05f, 1e-6);
-  CHECK(report.first.power > 0.0f);
-  CHECK(report.second.power > 0.0f);
+  EXPECT_EQ(report.stop_reason, StopReason::kNone);
+  EXPECT_NEAR(report.setpoint_rps, 0.05f, 1e-6);
+  EXPECT_GT(report.first.power, 0.0f);
+  EXPECT_GT(report.second.power, 0.0f);
 }
 
-void test_passes_open_loop_power_through() {
+TEST(Drivetrain, PassesOpenLoopPowerThrough) {
   Drivetrain drivetrain = make_drivetrain();
   const Target power = {
       .is_open_loop_power = true, .first = 0.3f, .second = -0.2f};
   const PeriodReport report =
       drivetrain.run_period(power, readings(0, 0), kPeriod);
-  CHECK_NEAR(report.first.power, 0.3f, 1e-6);
-  CHECK_NEAR(report.second.power, -0.2f, 1e-6);
-  CHECK_NEAR(report.setpoint_rps, 0.0f, 1e-6);
+  EXPECT_NEAR(report.first.power, 0.3f, 1e-6);
+  EXPECT_NEAR(report.second.power, -0.2f, 1e-6);
+  EXPECT_NEAR(report.setpoint_rps, 0.0f, 1e-6);
 }
 
-void test_bumper_stops_both_wheels() {
+TEST(Drivetrain, BumperStopsBothWheels) {
   Drivetrain drivetrain = make_drivetrain();
   drivetrain.run_period(kForward, readings(0, 0), kPeriod);
   const PeriodReport report =
       drivetrain.run_period(kForward, readings(0, 0, true), kPeriod);
-  CHECK(report.stop_reason == StopReason::kBumper);
-  CHECK_NEAR(report.first.power, 0.0f, 1e-6);
-  CHECK_NEAR(report.second.power, 0.0f, 1e-6);
+  EXPECT_EQ(report.stop_reason, StopReason::kBumper);
+  EXPECT_NEAR(report.first.power, 0.0f, 1e-6);
+  EXPECT_NEAR(report.second.power, 0.0f, 1e-6);
 }
 
-void test_wheels_stay_still_when_a_stop_clears() {
+TEST(Drivetrain, WheelsStayStillWhenAStopClears) {
   Drivetrain drivetrain = make_drivetrain();
   int32_t count = 0;
   for (int i = 0; i < 25; ++i) {
@@ -83,18 +100,9 @@ void test_wheels_stay_still_when_a_stop_clears() {
   // The ramp restarts from zero, not from the 1 rev/s before the stop.
   const PeriodReport report =
       drivetrain.run_period(kStop, readings(count, count), kPeriod);
-  CHECK(report.stop_reason == StopReason::kNone);
-  CHECK_NEAR(report.first.power, 0.0f, 1e-6);
-  CHECK_NEAR(report.second.power, 0.0f, 1e-6);
+  EXPECT_EQ(report.stop_reason, StopReason::kNone);
+  EXPECT_NEAR(report.first.power, 0.0f, 1e-6);
+  EXPECT_NEAR(report.second.power, 0.0f, 1e-6);
 }
 
 }  // namespace
-
-int main() {
-  test_measures_speed_from_counts();
-  test_ramps_toward_a_speed_target();
-  test_passes_open_loop_power_through();
-  test_bumper_stops_both_wheels();
-  test_wheels_stay_still_when_a_stop_clears();
-  return report("drivetrain");
-}
