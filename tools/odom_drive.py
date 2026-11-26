@@ -27,7 +27,7 @@ MIN_SPEED_FRACTION = 0.2  # while closing in, so a move can't stall short
 # script on the Pi (square tests, 26 Nov 2026). Each move aims short by this,
 # as ROS By Example's angular_tolerance does for turns.
 STRAIGHT_RUN_ON_M = 0.014
-TURN_RUN_ON_RAD = math.radians(2.8)
+TURN_RUN_ON_RAD = math.radians(3.0)
 COMMAND_PERIOD_S = 0.02
 POSE_WAIT_S = 10.0
 SETTLE_S = 1.5  # after stopping, so the report includes the coast to a stop

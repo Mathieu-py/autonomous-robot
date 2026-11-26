@@ -6,12 +6,12 @@ It runs ROS 2 Jazzy on a Raspberry Pi 5, with a Raspberry Pi Pico 2 W handling m
 
 ## Status
 
-As of 9 November 2026:
+As of 26 November 2026:
 
 - **Parts:** ordered and received.
 - **Simulation:** ROS 2 Jazzy, Gazebo and Nav2 run under WSL2. The Nav2 TurtleBot demo reaches its goals at about real time.
-- **Hardware:** every part passed its [bench tests](docs/bench-tests.md). The motor firmware runs PID speed control with bumper, low-battery, stall and watchdog stops, and drives from ROS 2 through keyboard teleop. ROS now runs on the Pi and the laptop drives it over WiFi; wiring and the chassis are next.
-- **Milestones:** [milestone 1](docs/milestone-1.md) (drive it) is finished on the bench, with the wheels lifted; driving on the floor waits for the chassis. Each milestone ends with a measurement written up in this repo.
+- **Hardware:** every part passed its [bench tests](docs/bench-tests.md). The robot is built and drives on the floor on its own battery: PID speed control with bumper, low-battery, stall and watchdog stops on the Pico, and ROS 2 on the Pi, which powers itself off when the battery runs low.
+- **Milestones:** [milestone 1](docs/milestone-1.md) (drive it) and [milestone 2](docs/milestone-2.md) (know where it is) are finished: after a 1 m square, the robot's own EKF knows where it ended to within 0.2° and 8 mm. Each milestone ends with a measurement written up in this repo.
 
 ## Documents
 
@@ -20,5 +20,6 @@ As of 9 November 2026:
 - [bench-tests.md](docs/bench-tests.md): step-by-step checks for each part, with results
 - [pi-setup.md](docs/pi-setup.md): ROS 2 on the robot's Pi, the Pico's USB link, and networking with the laptop
 - [milestone-1.md](docs/milestone-1.md): milestone 1 write-up: speed control, safety stops and teleop, with measurements
+- [milestone-2.md](docs/milestone-2.md): milestone 2 write-up: wheel odometry, our EKF against robot_localization, and the square tests
 - [results/](results/README.md): test data, logs and charts, such as PID step responses
 - [tools/](tools/): helper scripts, such as `plot_pid.py` for charting a PID log

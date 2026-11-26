@@ -1,0 +1,7 @@
+drive,run,command,front_along_mm,front_across_mm,rear_along_mm,rear_across_mm
+3,left 1,square 1.0,33,65,37,91
+4,left 2,square 1.0,10,53,15,78
+5,left 3,square 1.0,2,51,6,67
+7,right 1,square -1.0,32,-61,38,-87
+6,right 2,square -1.0,6,-41,8,-59
+9,right 3,square -1.0,-15,-70,-10,-100

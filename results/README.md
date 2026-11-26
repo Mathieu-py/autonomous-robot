@@ -86,7 +86,7 @@ Keyboard driving through `pico_bridge` (`ros/pico_bridge`), recorded with `ros2 
 
 ## IMU ([imu/](imu/))
 
-The MPU-6050 published by `pico_bridge` on `/imu/data_raw` at 50 Hz (±4 g, ±500 °/s, ~44 Hz filter), recorded on the Pi with `ros2 bag record /imu/data_raw /joint_states` into `~/bags/` (outside the repo). Convert with `python3 tools/imu_bag_to_csv.py <bag dir> <output.csv>` (ROS 2 sourced). Columns: `t_s` (from the first message), `ax ay az` (m/s²) and `gx gy gz` (rad/s), in the chip's axes (X robot right, Y forward, Z up), with the bridge's start-up gyro offset already removed. Every run: on the battery, motor switch off, on a table.
+The MPU-6050 published by `pico_bridge` on `/imu/data_raw` at 50 Hz (±4 g, ±500 °/s, ~44 Hz filter; 10 Hz since 26 November, see [square tests](#square-tests-squares)), recorded on the Pi with `ros2 bag record /imu/data_raw /joint_states` into `~/bags/` (outside the repo). Convert with `python3 tools/imu_bag_to_csv.py <bag dir> <output.csv>` (ROS 2 sourced). Columns: `t_s` (from the first message), `ax ay az` (m/s²) and `gx gy gz` (rad/s), in the chip's axes (X robot right, Y forward, Z up), with the bridge's start-up gyro offset already removed. Every run: on the battery, motor switch off, on a table.
 
 | Run | Test | Result |
 | --- | --- | --- |
@@ -117,5 +117,32 @@ Recorded on the Pi with `ros2 bag record -o ~/bags/odom_noise_2026-11-25 /odom /
 - **The odometry's spread is the encoders' rounding.** One count in a 20 ms reading is 4.3 mm/s of wheel speed, and the two wheels' counts differ by one now and then, which is 0.025 rad/s of turn rate. It isn't real wobble: the odometry's and the gyro's turn rates differ by 2.8 × 10⁻² rad/s, the spread of two independent readings.
 - **The gyro is about 35 times noisier while driving than still,** from the motors' vibration.
 - **The covariance defaults are the straight-run values:** `wheel_odometry`'s `linear_velocity_variance` 2.2 × 10⁻⁶ and `angular_velocity_variance` 3.1 × 10⁻⁴, and `pico_bridge`'s `gyro_variance` 4.1 × 10⁻⁴. The still value it replaced, 4.5 × 10⁻⁷, made the gyro look 1,000 times better than it is while driving.
-- **The gyro reads about 0.4% low.** It read 0.35–0.41% less than `/odom` on all four spins (720.4° against 722.9°, for example), and `/odom` is within about 0.1% of the floor measurements. The hand turns in IMU run 02 read 0.25% high. Both are well within the chip's ±3% sensitivity tolerance, so the gyro isn't rescaled.
+- **The gyro reads about 0.4% low.** It read 0.35–0.41% less than `/odom` on all four spins (720.4° against 722.9°, for example), and `/odom` is within about 0.1% of the floor measurements. The hand turns in IMU run 02 read 0.25% high. Both are well within the chip's ±3% sensitivity tolerance, so the gyro isn't rescaled. This was with the 44 Hz filter, which let motor vibration alias; with the 10 Hz filter the gyro agrees with the floor (square tests, run 04).
+
+## Square tests ([squares/](squares/))
+
+The drift test for milestone 2, after UMBmark. `python3 tools/odom_drive.py square 1.0` drives four 1 m sides at 0.1 m/s, each followed by a 90° turn on the spot at 0.5 rad/s, to the left (`square -1.0` turns right), stopping fully between moves. The deck carries a flag on its front edge and one on its rear edge, 240 mm apart with the turning centre midway, each set on a tape mark at the start. Afterwards each flag's distance from its own mark is measured in mm, along (+ ahead) and across (+ right). The robot's turn past whole turns is atan2(rear across − front across, 240 + front along − rear along), and where it ended is the flags' midpoint.
+
+Each session was recorded with `ros2 bag record /odom /odometry/filtered /ekf/odom /imu/data_raw /cmd_vel /ekf/gyro_bias /battery /joint_states` into `~/bags/` (outside the repo) and compared with `python3 tools/end_pose_errors.py <bag dir> results/squares/<floor csv>` (ROS 2 sourced). Each floor CSV lists the measured drives by their order in the recording, counting from 0, with the four flag readings. The tool prints each estimate's turn and end error for each drive, and how far each turn and side ran past its target by our EKF. Files are named by date, run number and what changed. Every session: three squares each way, on the battery, on a hard floor.
+
+| Run | What changed | Robot ended, from its start | Our EKF | robot_localization | `/odom` |
+| --- | --- | --- | --- | --- | --- |
+| [01](squares/2026-11-25-run01-first-ekf.csv) | First version of our EKF; `odom_drive.py` steers by `/odom`, from the laptop | 72 mm, 5.7° | −3.11° (spread 1.11), 29.7 mm | −2.16° (1.73), 24.8 mm | −2.89° (1.18), 30.8 mm |
+| [02](squares/2026-11-25-run02-turn-aware-ekf-and-ramps.csv) | Our EKF learns the gyro's offset only while not turning; `odom_drive.py` ramps its speed | 68 mm, 4.2° | −1.28° (1.13), 12.5 mm | −2.05° (1.04), 27.3 mm | −3.03° (1.18), 44.1 mm |
+| [03](squares/2026-11-26-run03-steered-by-ekf-on-the-pi.csv) | Our EKF publishes `odom → base_link`; `odom_drive.py` steers by it, on the Pi, and stops 11 mm and 1.9° short | 2.7 mm, 0.12° | +0.75° (0.09), 21.2 mm | −0.92° (2.39), 33.2 mm | −1.35° (1.43), 29.1 mm |
+| [04](squares/2026-11-26-run04-gyro-filter-10hz.csv) | Gyro filter 10 Hz instead of 44 Hz; stops 14 mm and 2.8° short | 1.5 mm, 0.08° | +0.17° (0.04), 7.9 mm | −1.04° (1.36), 24.9 mm | −1.52° (1.27), 28.2 mm |
+
+Each estimate's mean turn error per square, positive when it counted more turn than the robot made, with its spread (standard deviation) over the six squares; then the mean distance between where it said the robot ended and where it did.
+
+- **Run 01:** the recording's first three left squares (drives 0–2) were measured less carefully and aren't listed; drive 8 was stopped part-way. Our EKF followed the wheels: with the gyro's offset in its state, it put the gyro's extra turn down to offset.
+- **Run 02:** drive 4 hit something and isn't listed.
+- **Run 03:** recorded on the laptop, whose clock ran 1.5 s ahead of the Pi's; the tool times each command by the `/odom` stamp recorded just before it, so this doesn't matter. Drive 0 was the same square steered from the laptop: one turn stopped 3.2° past its target and our EKF ended 51 mm off, so `odom_drive.py` now runs on the Pi. The robot's near-perfect end was two errors cancelling: our EKF counted 0.75° too much turn per square, and the turns carried on about as far past their targets.
+- **Run 04:** also two turns on the spot each way (`spin 720`, `spin -720`). Our EKF counted 0.02% too much turn, robot_localization 0.42% too little and `/odom` 0.74% too little.
+
+What the runs show:
+
+- **`/odom` misses some of every turn.** The body turns further than the wheels count, mostly as it starts and stops, probably from the gearbox's backlash and the tyres' give, since the encoders are on the motor side. The gyro sees it; the wheels can't.
+- **The 44 Hz gyro filter let vibration alias.** The gyro is read at 50 Hz, so anything between 25 and 44 Hz, mostly motor vibration, folded into false slow readings, and the gyro's error changed from session to session: our EKF, which mostly follows the gyro, read 1.3° short per square in run 02 and 0.75° over in run 03. With the 10 Hz filter the gyro's spread while driving straight fell from 2.0 × 10⁻² to 1.2 × 10⁻² rad/s (variance 3.9 × 10⁻⁴ to 1.3 × 10⁻⁴, from `tools/odom_imu_noise.py` on runs 03 and 04), and our EKF's error from 0.75° to 0.17° per square.
+- **How far the robot carries on.** By our EKF, with `odom_drive.py` on the Pi, run 03's turns ended 0.89° past their targets (spread 0.18) and its sides 3.1 mm past (spread 1.5), stopping 1.9° and 11 mm short; run 04's turns ended 0.24° past and its sides 0.1 mm short, stopping 2.8° and 14 mm short. The extra 0.24° is the 10 Hz filter's 9 ms delay at 0.5 rad/s, so `odom_drive.py` now stops 3.0° and 14 mm short.
+- **`/odom` now misses 0.74% of two turns on the spot,** against 0.2% after the floor calibration on 25 November. It isn't explained yet, and it doesn't affect our EKF.
 

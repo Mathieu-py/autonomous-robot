@@ -1,0 +1,9 @@
+drive,run,command,front_along_mm,front_across_mm,rear_along_mm,rear_across_mm
+0,left 1,square 1.0,-0.3,1,-0.2,0.5
+1,left 2,square 1.0,0.6,0.9,0.8,0.9
+2,left 3,square 1.0,0.7,1.8,1.2,1.9
+3,right 1,square -1.0,-0.7,-0.7,-0.4,-1.5
+4,right 2,square -1.0,0.8,-1.2,1.0,-1.1
+5,right 3,square -1.0,-0.6,1.8,-1.6,2.2
+6,two turns left,spin 720,0.1,0.4,0.1,0.3
+7,two turns right,spin -720,-0.1,0.1,-0.1,0.1
