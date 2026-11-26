@@ -100,10 +100,20 @@ TEST(Ekf, TurnsByTheGyroWhileTheWheelsSlip) {
   Ekf ekf = settled_ekf(t_s);
   // The gyro sees 0.5 rad/s for 1 s; the slipping wheels see nothing.
   drive(ekf, t_s, 50, 0.0, 0.0, 0.5);
-  // About 80% of the 0.5 rad: the first 140 ms count as ordinary
+  // About 90% of the 0.5 rad: the first 140 ms count as ordinary
   // disagreement. Only the slip's first gyro reading teaches the offset.
-  EXPECT_NEAR(ekf.state()(Ekf::kYaw), 0.41, 0.02);
+  EXPECT_NEAR(ekf.state()(Ekf::kYaw), 0.44, 0.02);
   EXPECT_NEAR(ekf.state()(Ekf::kGyroBias), 0.0, 0.001);
+}
+
+TEST(Ekf, CountsTheGyrosExtraTurnWithoutLearningItAsOffset) {
+  double t_s = 0.0;
+  Ekf ekf = settled_ekf(t_s);
+  // The body turns more than the wheels count, as at starts and stops.
+  drive(ekf, t_s, 100, 0.0, 0.5, 0.55);  // 2 s: wheels 1.0 rad, gyro 1.1
+  EXPECT_GT(ekf.state()(Ekf::kYaw), 1.02);
+  EXPECT_LT(ekf.state()(Ekf::kYaw), 1.1);
+  EXPECT_NEAR(ekf.state()(Ekf::kGyroBias), 0.0, 0.0002);
 }
 
 TEST(Ekf, BriefDisagreementIsNotSlip) {

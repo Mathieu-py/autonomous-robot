@@ -6,8 +6,9 @@
 #include <optional>
 
 // Pure EKF for a two-wheel robot: fuses wheel odometry with a gyro whose zero
-// offset drifts, estimates that offset, and skips the wheels' turn rate while
-// they slip. No ROS.
+// offset drifts. Learns the offset only while not turning (the wheels miss
+// some rotation at each start and stop), and skips the wheels while they slip.
+// No ROS.
 namespace robot_ekf {
 
 // How fast each quantity can change between readings, as a spread per
@@ -71,6 +72,7 @@ class Ekf {
   bool update_wheels(double speed_mps, double turn_radps, double speed_variance,
                      double turn_variance) {
     update(row(kSpeed), speed_mps, speed_variance);
+    is_turning_ = std::abs(turn_radps) > kTurningRadps;
     if (has_fresh_gyro()) {
       slip_readings_ = disagrees_with_gyro(turn_radps, turn_variance)
                            ? slip_readings_ + 1
@@ -108,6 +110,9 @@ class Ekf {
   static constexpr int kSlipReadings = 8;
   static constexpr double kGyroMaxAgeS = 0.03;
   static constexpr double kMaxPredictS = 1.0;
+  // Well above the wheels' turn-rate noise (0.018 rad/s) while driving
+  // straight.
+  static constexpr double kTurningRadps = 0.05;
 
   static Row row(Index index) { return Row::Unit(index); }
   static double squared(double value) { return value * value; }
@@ -126,20 +131,26 @@ class Ekf {
     return std::abs(turn_radps - gyro_turn_radps) > kSlipGateSpreads * spread;
   }
 
-  // While the wheels and the gyro disagree, neither teaches the gyro offset.
-  bool is_offset_learnable() const { return slip_readings_ == 0; }
+  // Only straight or still, with the wheels and gyro agreeing, is any gyro
+  // reading its offset.
+  bool is_offset_learnable() const {
+    return slip_readings_ == 0 && !is_turning_;
+  }
 
-  // One scalar reading. Joseph form keeps the covariance right for any gain,
-  // including one that leaves the gyro offset alone.
+  // One scalar reading. A held offset counts as known, so a disagreement moves
+  // the turn rate rather than the heading's past. Joseph form keeps the
+  // covariance right for either gain.
   void update(const Row& h, double reading, double variance,
               bool can_change_gyro_bias = true) {
+    Matrix weighting = covariance_;
+    if (!can_change_gyro_bias) {
+      weighting.row(kGyroBias).setZero();
+      weighting.col(kGyroBias).setZero();
+    }
     const double innovation = reading - (h * state_)(0);
     const double innovation_variance =
-        (h * covariance_ * h.transpose())(0) + variance;
-    Vector gain = covariance_ * h.transpose() / innovation_variance;
-    if (!can_change_gyro_bias) {
-      gain(kGyroBias) = 0.0;
-    }
+        (h * weighting * h.transpose())(0) + variance;
+    const Vector gain = weighting * h.transpose() / innovation_variance;
     state_ += gain * innovation;
     state_(kYaw) = wrapped(state_(kYaw));
     const Matrix keep = Matrix::Identity() - gain * h;
@@ -153,6 +164,7 @@ class Ekf {
   std::optional<double> time_s_;
   std::optional<GyroReading> last_gyro_;
   int slip_readings_ = 0;
+  bool is_turning_ = false;
 };
 
 }  // namespace robot_ekf
