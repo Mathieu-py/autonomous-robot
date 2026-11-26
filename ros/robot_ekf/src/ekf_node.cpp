@@ -1,5 +1,6 @@
-// /odom's speeds and /imu/data_raw's turn rate into /ekf/odom, with the gyro's
-// estimated zero offset on /ekf/gyro_bias. Logs wheel slip and time jumps.
+// /odom's speeds and /imu/data_raw's turn rate into /ekf/odom and the
+// odom -> base_link transform, with the gyro's estimated zero offset on
+// /ekf/gyro_bias. Logs wheel slip and time jumps.
 
 #include <cmath>
 #include <memory>
@@ -7,12 +8,14 @@
 #include <variant>
 
 #include "builtin_interfaces/msg/time.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "robot_ekf/ekf.hpp"
 #include "robot_ekf/reorder_buffer.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "std_msgs/msg/float64.hpp"
+#include "tf2_ros/transform_broadcaster.h"
 
 namespace robot_ekf {
 
@@ -36,6 +39,10 @@ class EkfNode : public rclcpp::Node {
         create_publisher<nav_msgs::msg::Odometry>("ekf/odom", 10);
     gyro_bias_publisher_ =
         create_publisher<std_msgs::msg::Float64>("ekf/gyro_bias", 10);
+    // Off if another node publishes this transform.
+    if (declare_parameter("publish_tf", true)) {
+      tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+    }
     wheels_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
         "odom", 10,
         [this](const nav_msgs::msg::Odometry& msg) { on_wheels(msg); });
@@ -147,6 +154,16 @@ class EkfNode : public rclcpp::Node {
     }
     estimate_publisher_->publish(estimate);
 
+    if (tf_broadcaster_) {
+      geometry_msgs::msg::TransformStamped transform;
+      transform.header = estimate.header;
+      transform.child_frame_id = base_frame_;
+      transform.transform.translation.x = s(Ekf::kX);
+      transform.transform.translation.y = s(Ekf::kY);
+      transform.transform.rotation = estimate.pose.pose.orientation;
+      tf_broadcaster_->sendTransform(transform);
+    }
+
     std_msgs::msg::Float64 gyro_bias;
     gyro_bias.data = s(Ekf::kGyroBias);
     gyro_bias_publisher_->publish(gyro_bias);
@@ -160,6 +177,7 @@ class EkfNode : public rclcpp::Node {
   std::string base_frame_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr estimate_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gyro_bias_publisher_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr wheels_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr gyro_subscription_;
 };

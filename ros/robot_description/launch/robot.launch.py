@@ -1,5 +1,6 @@
 """The robot's frames, wheel odometry, and two EKFs side by side:
-robot_localization's and ours. pico_bridge runs separately, as a service."""
+robot_localization's and ours. Ours publishes the odom -> base_link transform.
+pico_bridge runs separately, as a service."""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import (Command, LaunchConfiguration,
@@ -23,7 +24,7 @@ def generate_launch_description():
              parameters=[{"robot_description": ParameterValue(urdf, value_type=str)},
                          use_sim_time]),
         Node(package="wheel_odometry", executable="wheel_odometry_node",
-             parameters=[drive_config, use_sim_time]),
+             parameters=[drive_config, {"publish_tf": False}, use_sim_time]),
         Node(package="robot_localization", executable="ekf_node",
              name="ekf_filter_node", parameters=[ekf_config, use_sim_time]),
         Node(package="robot_ekf", executable="robot_ekf_node",

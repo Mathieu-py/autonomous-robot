@@ -8,16 +8,20 @@ include_directories(include)
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_executable(robot_ekf_node src/ekf_node.cpp)
 target_link_libraries(robot_ekf_node PRIVATE
   Eigen3::Eigen
   rclcpp::rclcpp
+  tf2_ros::tf2_ros
   ${builtin_interfaces_TARGETS}
+  ${geometry_msgs_TARGETS}
   ${nav_msgs_TARGETS}
   ${sensor_msgs_TARGETS}
   ${std_msgs_TARGETS})

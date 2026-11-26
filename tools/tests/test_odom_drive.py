@@ -2,20 +2,19 @@ import math
 
 import pytest
 
-from odom_drive import (OdomTracker, moves_for, ramped_speed,
+from odom_drive import (PoseTracker, moves_for, ramped_speed,
                         yaw_from_quaternion)
 
 
-def test_adds_up_the_distance_travelled():
-    tracker = OdomTracker()
-    for x in (0.0, 0.3, 0.6, 1.0):
-        tracker.feed(x, 0.0, 0.0)
-    assert tracker.distance_m == pytest.approx(1.0)
-    assert tracker.offset_from_start() == pytest.approx((1.0, 0.0))
+def test_distance_is_in_a_straight_line_not_along_the_wobble():
+    tracker = PoseTracker()
+    for x, y in ((0.0, 0.0), (0.3, 0.4), (0.0, 0.8), (0.3, 0.4)):
+        tracker.feed(x, y, 0.0)
+    assert tracker.distance_from((0.0, 0.0, 0.0)) == pytest.approx(0.5)
 
 
 def test_counts_whole_turns_across_the_wrap_at_pi():
-    tracker = OdomTracker()
+    tracker = PoseTracker()
     for degrees in range(0, 721, 10):
         tracker.feed(0.0, 0.0, math.remainder(math.radians(degrees),
                                               2 * math.pi))
@@ -23,7 +22,7 @@ def test_counts_whole_turns_across_the_wrap_at_pi():
 
 
 def test_spinning_right_counts_negative():
-    tracker = OdomTracker()
+    tracker = PoseTracker()
     for degrees in range(0, -361, -10):
         tracker.feed(0.0, 0.0, math.remainder(math.radians(degrees),
                                               2 * math.pi))
@@ -31,7 +30,7 @@ def test_spinning_right_counts_negative():
 
 
 def test_offset_is_along_the_start_heading():
-    tracker = OdomTracker()
+    tracker = PoseTracker()
     tracker.feed(1.0, 1.0, math.pi / 2)  # facing +y
     tracker.feed(1.0, 2.0, math.pi / 2)
     tracker.feed(0.9, 2.0, math.pi / 2)

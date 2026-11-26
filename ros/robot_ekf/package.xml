@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_ekf</name>
   <version>0.1.0</version>
-  <description>Our own EKF: fuses /odom's speeds with the gyro's turn rate and estimates the gyro's zero offset; publishes /ekf/odom.</description>
+  <description>Our own EKF: fuses /odom's speeds with the gyro's turn rate and estimates the gyro's zero offset; publishes /ekf/odom and the odom -> base_link transform.</description>
   <maintainer email="mathieu.sevestre@gmail.com">Mathieu Sevestre</maintainer>
   <license>MIT</license>
 
@@ -11,10 +11,12 @@
 
   <depend>builtin_interfaces</depend>
   <depend>eigen</depend>
+  <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
 

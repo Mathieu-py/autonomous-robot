@@ -1,7 +1,8 @@
-"""Drive a set distance, angle or square by /odom, stop, and print where /odom
-says the robot ended, to compare with a tape measure.
+"""Drive a set distance, angle or square by the robot's pose (the odom ->
+base_link transform, from our EKF), stop, and print where the robot ended by
+that pose and by /odom alone, to compare with a tape measure.
 
-Usage (ROS 2 sourced; the bridge and wheel_odometry running):
+Usage (ROS 2 sourced; the bridge and robot.launch.py running):
   python3 tools/odom_drive.py straight <metres>   # 0.1 m/s; negative reverses
   python3 tools/odom_drive.py spin <degrees>      # on the spot at 0.5 rad/s;
                                                   # negative spins right
@@ -20,28 +21,37 @@ ANGULAR_RADPS = 0.5
 LINEAR_ACCEL_MPS2 = 2.5
 ANGULAR_ACCEL_RADPS2 = 3.2
 MIN_SPEED_FRACTION = 0.2  # while closing in, so a move can't stall short
+# How far the robot carries on after the last command, by the EKF (square
+# tests, 25 Nov 2026). Each move aims short by this, as ROS By Example's
+# angular_tolerance does for turns.
+STRAIGHT_RUN_ON_M = 0.011
+TURN_RUN_ON_RAD = math.radians(1.9)
 COMMAND_PERIOD_S = 0.02
-ODOM_WAIT_S = 10.0
+POSE_WAIT_S = 10.0
 SETTLE_S = 1.5  # after stopping, so the report includes the coast to a stop
+ODOM_FRAME = "odom"
+BASE_FRAME = "base_link"
 
 
-class OdomTracker:
-    """Distance and unwrapped turn since the first pose it was fed."""
+class PoseTracker:
+    """The latest pose, and the unwrapped turn since the first."""
 
     def __init__(self):
         self.start = None
         self.last = None
-        self.distance_m = 0.0
         self.turn_rad = 0.0
 
     def feed(self, x, y, yaw):
         if self.start is None:
             self.start = self.last = (x, y, yaw)
             return
-        last_x, last_y, last_yaw = self.last
-        self.distance_m += math.hypot(x - last_x, y - last_y)
-        self.turn_rad += math.remainder(yaw - last_yaw, 2 * math.pi)
+        self.turn_rad += math.remainder(yaw - self.last[2], 2 * math.pi)
         self.last = (x, y, yaw)
+
+    def distance_from(self, pose):
+        """Straight-line distance, as Nav2's DriveOnHeading measures progress:
+        the estimate's small sideways wobble at a stop doesn't add up."""
+        return math.hypot(self.last[0] - pose[0], self.last[1] - pose[1])
 
     def offset_from_start(self):
         """(forward, left) in metres, along the start heading."""
@@ -53,7 +63,7 @@ class OdomTracker:
 
 
 def yaw_from_quaternion(z, w):
-    """Yaw of a rotation about z only, as wheel_odometry publishes."""
+    """Yaw of a rotation about z only, as the robot's poses are."""
     return 2 * math.atan2(z, w)
 
 
@@ -74,6 +84,15 @@ def moves_for(kind, amount):
     return [side, corner] * 4
 
 
+def print_report(name, tracker):
+    forward_m, left_m = tracker.offset_from_start()
+    print(f"{name} after stopping:")
+    print(f"  ended {forward_m:+.3f} m forward and {left_m:+.3f} m left of the "
+          "start")
+    print(f"  turned {math.degrees(tracker.turn_rad):+.1f} deg "
+          "(positive is left)")
+
+
 def main():
     if len(sys.argv) != 3 or sys.argv[1] not in ("straight", "spin", "square"):
         sys.exit(__doc__)
@@ -84,24 +103,43 @@ def main():
     from geometry_msgs.msg import Twist
     from nav_msgs.msg import Odometry
     from rclpy.signals import SignalHandlerOptions
+    from rclpy.time import Time
+    from tf2_ros import TransformException
+    from tf2_ros.buffer import Buffer
+    from tf2_ros.transform_listener import TransformListener
 
     # Ctrl+C stays a KeyboardInterrupt, so the stop below still gets sent.
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     node = rclpy.create_node("odom_drive")
     publisher = node.create_publisher(Twist, "cmd_vel", 10)
-    tracker = OdomTracker()
+    tf_buffer = Buffer()
+    tf_listener = TransformListener(tf_buffer, node)  # noqa: F841, kept alive
+    pose = PoseTracker()  # what it steers by
+    wheels = PoseTracker()  # /odom alone, for checking the wheel calibration
     node.create_subscription(
         Odometry, "odom",
-        lambda msg: tracker.feed(
+        lambda msg: wheels.feed(
             msg.pose.pose.position.x, msg.pose.pose.position.y,
             yaw_from_quaternion(msg.pose.pose.orientation.z,
                                 msg.pose.pose.orientation.w)),
         10)
 
+    def read_pose():
+        try:
+            transform = tf_buffer.lookup_transform(ODOM_FRAME, BASE_FRAME,
+                                                   Time())
+        except TransformException:
+            return
+        position = transform.transform.translation
+        rotation = transform.transform.rotation
+        pose.feed(position.x, position.y,
+                  yaw_from_quaternion(rotation.z, rotation.w))
+
     def spin_for(seconds):
         end = time.monotonic() + seconds
         while time.monotonic() < end:
-            rclpy.spin_once(node, timeout_sec=end - time.monotonic())
+            rclpy.spin_once(node, timeout_sec=max(end - time.monotonic(), 0.0))
+            read_pose()
 
     def stop():
         """Holds zero long enough to include the coast to a stop."""
@@ -113,23 +151,25 @@ def main():
     planned_turn_rad = 0.0
 
     def drive_move(kind, amount):
-        """Drives one move by /odom; False if it made no progress in time."""
+        """Drives one move by the pose; False if it made no progress in time.
+        Each move aims short by how far the robot carries on after it."""
         nonlocal planned_turn_rad
         is_straight = kind == "straight"
         target = abs(amount) if is_straight else math.radians(abs(amount))
         cruise = LINEAR_MPS if is_straight else ANGULAR_RADPS
         accel = LINEAR_ACCEL_MPS2 if is_straight else ANGULAR_ACCEL_RADPS2
         if is_straight:
-            start_m = tracker.distance_m
+            start = pose.last
 
             def remaining():
-                return target - (tracker.distance_m - start_m)
+                return target - STRAIGHT_RUN_ON_M - pose.distance_from(start)
         else:
             planned_turn_rad += math.radians(amount)
+            direction = math.copysign(1.0, amount)
 
             def remaining():
-                direction = math.copysign(1.0, amount)
-                return (planned_turn_rad - tracker.turn_rad) * direction
+                return ((planned_turn_rad - pose.turn_rad) * direction
+                        - TURN_RUN_ON_RAD)
 
         deadline = time.monotonic() + 2 * target / cruise + 5.0
         speed = 0.0
@@ -149,11 +189,13 @@ def main():
             spin_for(COMMAND_PERIOD_S)
         return True
 
-    give_up_at = time.monotonic() + ODOM_WAIT_S
-    while tracker.start is None and time.monotonic() < give_up_at:
-        rclpy.spin_once(node, timeout_sec=0.1)
-    if tracker.start is None:
-        sys.exit("No /odom: is robot_description's robot.launch.py running?")
+    give_up_at = time.monotonic() + POSE_WAIT_S
+    while ((pose.start is None or wheels.start is None)
+           and time.monotonic() < give_up_at):
+        spin_for(0.1)
+    if pose.start is None or wheels.start is None:
+        sys.exit(f"No /odom or {ODOM_FRAME} -> {BASE_FRAME} transform: is "
+                 "robot_description's robot.launch.py running?")
 
     try:
         for i, (kind, amount) in enumerate(moves):
@@ -166,12 +208,8 @@ def main():
     finally:
         stop()
 
-    forward_m, left_m = tracker.offset_from_start()
-    print("/odom after stopping:")
-    print(f"  travelled {tracker.distance_m:.3f} m; ended {forward_m:+.3f} m "
-          f"forward and {left_m:+.3f} m left of the start")
-    print(f"  turned {math.degrees(tracker.turn_rad):+.1f} deg "
-          "(positive is left)")
+    print_report(f"The pose ({ODOM_FRAME} -> {BASE_FRAME})", pose)
+    print_report("/odom (the wheels alone)", wheels)
     node.destroy_node()
     rclpy.shutdown()
 
