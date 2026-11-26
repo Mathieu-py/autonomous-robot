@@ -2,7 +2,8 @@ import math
 
 import pytest
 
-from odom_drive import OdomTracker, moves_for, yaw_from_quaternion
+from odom_drive import (OdomTracker, moves_for, ramped_speed,
+                        yaw_from_quaternion)
 
 
 def test_adds_up_the_distance_travelled():
@@ -53,3 +54,20 @@ def test_a_square_turns_the_way_its_sign_says():
     right = moves_for("square", -1.0)
     assert left == [("straight", 1.0), ("spin", 90.0)] * 4
     assert right == [("straight", 1.0), ("spin", -90.0)] * 4
+
+
+def test_speeds_up_no_faster_than_the_acceleration_allows():
+    assert ramped_speed(0.0, 1.0, 0.5, 3.2, 0.02) == pytest.approx(0.064)
+
+
+def test_holds_cruise_speed_mid_move():
+    assert ramped_speed(0.5, 1.0, 0.5, 3.2, 0.02) == pytest.approx(0.5)
+
+
+def test_slows_so_it_could_stop_in_what_remains():
+    # 0.025 rad left at 3.2 rad/s^2: no faster than sqrt(2 * 3.2 * 0.025).
+    assert ramped_speed(0.5, 0.025, 0.5, 3.2, 0.02) == pytest.approx(0.4)
+
+
+def test_keeps_a_fifth_of_cruise_until_the_end():
+    assert ramped_speed(0.2, 1e-6, 0.5, 3.2, 0.02) == pytest.approx(0.1)

@@ -15,7 +15,12 @@ import time
 
 LINEAR_MPS = 0.1
 ANGULAR_RADPS = 0.5
-COMMAND_PERIOD_S = 0.05
+# As Nav2's velocity smoother defaults. The firmware's own wheel ramp allows
+# about 1 m/s² straight but 12 rad/s² turning: a jolt at each turn.
+LINEAR_ACCEL_MPS2 = 2.5
+ANGULAR_ACCEL_RADPS2 = 3.2
+MIN_SPEED_FRACTION = 0.2  # while closing in, so a move can't stall short
+COMMAND_PERIOD_S = 0.02
 ODOM_WAIT_S = 10.0
 SETTLE_S = 1.5  # after stopping, so the report includes the coast to a stop
 
@@ -50,6 +55,14 @@ class OdomTracker:
 def yaw_from_quaternion(z, w):
     """Yaw of a rotation about z only, as wheel_odometry publishes."""
     return 2 * math.atan2(z, w)
+
+
+def ramped_speed(current, remaining, cruise, accel, dt):
+    """The next command: no faster than accel allows, slow enough to stop in
+    what remains, and at least MIN_SPEED_FRACTION of cruise until the end."""
+    stoppable = math.sqrt(2.0 * accel * max(remaining, 0.0))
+    target = max(min(cruise, stoppable), MIN_SPEED_FRACTION * cruise)
+    return min(target, current + accel * dt)
 
 
 def moves_for(kind, amount):
@@ -104,28 +117,34 @@ def main():
         nonlocal planned_turn_rad
         is_straight = kind == "straight"
         target = abs(amount) if is_straight else math.radians(abs(amount))
-        speed = LINEAR_MPS if is_straight else ANGULAR_RADPS
-        drive = Twist()
+        cruise = LINEAR_MPS if is_straight else ANGULAR_RADPS
+        accel = LINEAR_ACCEL_MPS2 if is_straight else ANGULAR_ACCEL_RADPS2
         if is_straight:
-            drive.linear.x = math.copysign(LINEAR_MPS, amount)
             start_m = tracker.distance_m
 
             def remaining():
                 return target - (tracker.distance_m - start_m)
         else:
-            drive.angular.z = math.copysign(ANGULAR_RADPS, amount)
             planned_turn_rad += math.radians(amount)
 
             def remaining():
                 direction = math.copysign(1.0, amount)
                 return (planned_turn_rad - tracker.turn_rad) * direction
 
-        deadline = time.monotonic() + 2 * target / speed + 5.0
+        deadline = time.monotonic() + 2 * target / cruise + 5.0
+        speed = 0.0
         while remaining() > 0:
             if time.monotonic() > deadline:
                 print("Stopped early: no progress. Is a Pico stop active? "
                       "Check the bridge's journal.")
                 return False
+            speed = ramped_speed(speed, remaining(), cruise, accel,
+                                 COMMAND_PERIOD_S)
+            drive = Twist()
+            if is_straight:
+                drive.linear.x = math.copysign(speed, amount)
+            else:
+                drive.angular.z = math.copysign(speed, amount)
             publisher.publish(drive)
             spin_for(COMMAND_PERIOD_S)
         return True
