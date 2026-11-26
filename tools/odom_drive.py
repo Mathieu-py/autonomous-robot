@@ -2,6 +2,8 @@
 base_link transform, from our EKF), stop, and print where the robot ended by
 that pose and by /odom alone, to compare with a tape measure.
 
+Run it on the Pi: over WiFi the pose arrives late, so the stops vary.
+
 Usage (ROS 2 sourced; the bridge and robot.launch.py running):
   python3 tools/odom_drive.py straight <metres>   # 0.1 m/s; negative reverses
   python3 tools/odom_drive.py spin <degrees>      # on the spot at 0.5 rad/s;
@@ -21,11 +23,11 @@ ANGULAR_RADPS = 0.5
 LINEAR_ACCEL_MPS2 = 2.5
 ANGULAR_ACCEL_RADPS2 = 3.2
 MIN_SPEED_FRACTION = 0.2  # while closing in, so a move can't stall short
-# How far the robot carries on after the last command, by the EKF (square
-# tests, 25 Nov 2026). Each move aims short by this, as ROS By Example's
-# angular_tolerance does for turns.
-STRAIGHT_RUN_ON_M = 0.011
-TURN_RUN_ON_RAD = math.radians(1.9)
+# How far the robot carries on after deciding to stop, by the EKF, with this
+# script on the Pi (square tests, 26 Nov 2026). Each move aims short by this,
+# as ROS By Example's angular_tolerance does for turns.
+STRAIGHT_RUN_ON_M = 0.014
+TURN_RUN_ON_RAD = math.radians(2.8)
 COMMAND_PERIOD_S = 0.02
 POSE_WAIT_S = 10.0
 SETTLE_S = 1.5  # after stopping, so the report includes the coast to a stop

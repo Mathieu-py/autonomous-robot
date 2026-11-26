@@ -34,7 +34,8 @@ const char* Imu::start(i2c_inst_t* i2c, uint sda_pin, uint scl_pin) {
   }
   sleep_ms(10);
   const bool is_configured =
-      write_register(kConfig, 0x03) &&          // ~44 Hz filter
+      // ~10 Hz filter, under half the 50 Hz read rate: vibration can't alias.
+      write_register(kConfig, 0x05) &&
       write_register(kSampleRateDivider, 9) &&  // 100 Hz
       write_register(kGyroConfig, range_bits(kGyroRangeSetting)) &&
       write_register(kAccelConfig, range_bits(kAccelRangeSetting));
