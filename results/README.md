@@ -148,3 +148,29 @@ What the runs show:
 - **How far the robot carries on.** By our EKF, with `odom_drive.py` on the Pi, run 03's turns ended 0.89° past their targets (spread 0.18) and its sides 3.1 mm past (spread 1.5), stopping 1.9° and 11 mm short; run 04's turns ended 0.24° past and its sides 0.1 mm short, stopping 2.8° and 14 mm short. The extra 0.24° is the 10 Hz filter's 9 ms delay at 0.5 rad/s, so `odom_drive.py` now stops 3.0° and 14 mm short. In run 05 the turns ended 0.48° past (spread 0.35) and the sides 0.3 mm past.
 - **`/odom` now misses 0.65–0.74% of two turns on the spot** (runs 04 and 05), against 0.2% after the floor calibration on 25 November. It isn't explained yet, and it doesn't affect our EKF.
 
+
+## Maps ([maps/](maps/))
+
+Maps from SLAM Toolbox (`ros2 launch robot_description slam.launch.py`, with `ros/robot_description/config/slam.yaml`), built on the Pi while driving by teleop at 0.1 m/s and 0.5 rad/s, and saved from the laptop with `ros2 run nav2_map_server map_saver_cli -f <name>`. Each map is a `.pgm` image with its `.yaml` (5 cm cells, and where the image sits in the `map` frame), plus a `.png` marking the tape checks, which GitHub can show.
+
+Distances in the room were measured with a tape at about the laser's height, 15 cm up, and are approximate rather than exact to the centimetre. On the map, a wall's position is the average column of its occupied cells over the rows listed in the `-tape.csv`, and a distance is the gap between two walls; a box's size is the distance between the centres of its outermost cells.
+
+Uncertainties are one standard deviation. A wall can be anywhere in its 5 cm cell, so its position on the map is uncertain by ±14 mm (5 cm / √12), and a distance between two walls or edges by ±20 mm; ±50 mm at the very worst. The tape readings are taken as ±10 mm, as they were approximate. A difference combines the two: ±22 mm.
+
+| Run | What | Tape against map |
+| --- | --- | --- |
+| [01](maps/2026-11-27-run01-first-map.png) | First map: one room, driven round once and back to the start | Five distances, 0.15–2.9 m: −36 to +8 mm, 12 mm on average, each ±22 mm |
+
+Run 01's distances ([2026-11-27-run01-first-map-tape.csv](maps/2026-11-27-run01-first-map-tape.csv)):
+
+| Distance | Tape | Map | Difference |
+| --- | --- | --- | --- |
+| Top part: middle wall to the cabinet's front | 2.901 ± 0.010 m (114.2 in) | 2.894 ± 0.020 m | −7 ± 22 mm |
+| Lower part: width at its upper end | 1.235 ± 0.010 m, re-measured (first read as 49.25 in, 1.251 m) | 1.225 ± 0.020 m | −10 ± 22 mm |
+| Lower part: width at its lower end | 1.121 ± 0.010 m (44 1/8 in) | 1.129 ± 0.020 m | +8 ± 22 mm |
+| Box: length | 0.686 ± 0.010 m (27 in) | 0.650 ± 0.020 m, or more: its far end isn't mapped | −36 ± 22 mm |
+| Box: width | 0.149 ± 0.010 m (5 7/8 in) | 0.150 ± 0.020 m | +1 ± 22 mm |
+
+Four of the five differences are well inside their ±22 mm. The fifth, the box's length, is 1.6 times it, and there the map can only say the box is at least that long.
+
+- **Run 01:** 113 × 195 cells (5.65 × 9.75 m). The long strip at the bottom is a hallway, seen through a doorway. The box is the one used to check which way the LiDAR faces, beside where the robot started. Its far end isn't marked as wall, only its two sides reach it, so its length is the least certain distance. The lower part narrows by 11 cm between the two tape lines; the map has it narrowing by 10 cm. The robot was also steered round the room by watching only the map in RViz, passing close to objects.

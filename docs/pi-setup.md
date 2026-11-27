@@ -214,7 +214,7 @@ colcon build --packages-select sllidar_ros2
 
 The URDF's `laser` frame is on the laser plane, 151.8 mm up, at the LiDAR's centre from [cad/layout.py](../cad/layout.py) (45 mm behind the axle, 10 mm right of centre), turned 180°: the driver's x points at the LiDAR's cable, which faces the rear.
 
-**Check, 27 November 2026:** on its own (`ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/lidar`) it logs health OK and `Standard, sample rate: 5 Khz, max_distance: 16.0 m, scan frequency:10.0 Hz`; `ros2 topic hz /scan` shows 10.02 Hz with 1.2 ms of jitter, and `vcgencmd get_throttled` stays at `0x0` on the battery. In RViz with Fixed Frame `laser`, a box 30 cm in front of the robot showed on the laser's −x axis, and one 30 cm to its left on −y, hence the 180° turn.
+**Check, 27 November 2026:** on its own (`ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/lidar`) it logs health OK and `Standard, sample rate: 5 Khz, max_distance: 16.0 m, scan frequency:10.0 Hz`; `ros2 topic hz /scan` shows 10.02 Hz with 1.2 ms of jitter, and `vcgencmd get_throttled` stays at `0x0` on the battery. In RViz with Fixed Frame `laser`, a box 30 cm in front of the robot showed on the laser's −x axis, and one 30 cm to its left on −y, hence the 180° turn. Then with `robot.launch.py` and Fixed Frame `odom`, a 180° turn on the spot (`odom_drive.py spin 180`) left the walls within 1 mm (median) of where they were, measured on screenshots before and after, and they stayed put while it turned.
 
 ## 10. Mapping with SLAM Toolbox
 
@@ -231,3 +231,5 @@ mkdir -p ~/maps && ros2 run nav2_map_server map_saver_cli -f ~/maps/<name>
 ```
 
 It writes `<name>.pgm`, the image, and `<name>.yaml`, its scale (5 cm per pixel) and origin.
+
+**Check, 27 November 2026:** the first map matched a tape measure to within 4 cm over five distances from 0.15 to 2.9 m ([results](../results/README.md#maps-maps)).

@@ -1,0 +1,6 @@
+distance,tape_in,tape_m,tape_uncertainty_m,map_m,map_uncertainty_m,map_cells
+Top part: middle wall to the cabinet's front,114.2,2.901,0.010,2.894,0.020,"rows 50-55, walls cols 41-44 and 99-102"
+Lower part: width at its upper end,48.62,1.235,0.010,1.225,0.020,"rows 69-76, walls cols 47-52 and 70-76"
+Lower part: width at its lower end,44.125,1.121,0.010,1.129,0.020,"rows 85-91, walls cols 47-52 and 70-76"
+Box: length,27.0,0.686,0.010,0.65,0.020,"rows 35-48, cols 79-82; its far end isn't marked as wall"
+Box: width,5.875,0.149,0.010,0.15,0.020,"rows 35-48, cols 79-82"

@@ -1,0 +1,7 @@
+image: 2026-11-27-run01-first-map.pgm
+mode: trinary
+resolution: 0.050
+origin: [-3.622, -7.625, 0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
