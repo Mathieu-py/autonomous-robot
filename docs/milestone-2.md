@@ -27,15 +27,15 @@ Four square sessions got there, one change at a time ([square tests](../results/
 
 **Wheel odometry** ([ros/wheel_odometry/](../ros/wheel_odometry/)): turns `/joint_states` into `/odom`. The wheel size and spacing come from driving on the floor, not the calipers: the wheels roll as if 67.0 mm across and turn as if 170.4 mm apart ([odometry calibration](../results/README.md#odometry-calibration-odometry)). Its covariances are the measured noise ([odometry and IMU noise](../results/README.md#odometry-and-imu-noise)).
 
-**robot_localization, as the yardstick** ([config/ekf.yaml](../ros/robot_description/config/ekf.yaml)): fuses `/odom`'s speed and turn rate with the gyro's turn rate into `/odometry/filtered`.
+**robot_localization, as the yardstick** ([config/robot_localization.yaml](../ros/robot_description/config/robot_localization.yaml)): fuses `/odom`'s speed and turn rate with the gyro's turn rate into `/odometry/filtered`.
 
 **Our EKF** ([ros/robot_ekf/](../ros/robot_ekf/)): a pure C++ class with no ROS ([ekf.hpp](../ros/robot_ekf/include/robot_ekf/ekf.hpp)), and a node around it.
 
 - It estimates position, heading, speed, turn rate and the gyro's zero offset, which can reach a few degrees a minute and drifts.
 - It learns the offset only while the robot isn't turning. At each start and stop of a turn, the body turns further than the wheels count, and an EKF free to explain that as offset follows the wheels instead (run 01).
 - It ignores the wheels' turn rate while they slip, when they disagree with the gyro for 8 readings in a row. Starting and stopping disagree for up to 5.
-- The node sorts the two sensors' readings by time (30 ms behind), restarts if time jumps back, and publishes `/ekf/odom`, `/ekf/gyro_bias` and the `odom → base_link` transform, the pose Nav2 will steer by. Only one node may publish that transform ([REP 105](https://www.ros.org/reps/rep-0105.html)), so the launch file turns `wheel_odometry`'s off and `ekf.yaml` turns robot_localization's off.
-- 17 unit tests: the EKF on straight runs, turns, slips, offsets and time gaps, and the reading sorter.
+- The node sorts the two sensors' readings by time (30 ms behind), restarts if time jumps back, and publishes `/ekf/odom`, `/ekf/gyro_bias` and the `odom → base_link` transform, the pose Nav2 will steer by. Only one node may publish that transform ([REP 105](https://www.ros.org/reps/rep-0105.html)), so `wheel_odometry` doesn't publish it and `robot_localization.yaml` turns robot_localization's off.
+- 19 unit tests: the EKF on straight runs, turns, slips, offsets and time gaps, and the reading sorter.
 
 **A test driver that drives like Nav2** ([tools/odom_drive.py](../tools/odom_drive.py)): drives a set distance, angle or square by the `odom → base_link` transform, as Nav2's Spin and DriveOnHeading behaviours do. It ramps its speed with Nav2's velocity smoother defaults (2.5 m/s², 3.2 rad/s²) and slows so it could stop in what remains. Each move stops short by how far the robot carries on, 14 mm and 3.0°, as ROS By Example's `angular_tolerance` does. It runs on the Pi.
 

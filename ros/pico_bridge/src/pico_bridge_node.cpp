@@ -1,29 +1,45 @@
 // Bridges /cmd_vel, the Pico's status and its IMU; powers the Pi off on a
 // flat battery.
 
+#include <sys/wait.h>
+
 #include <chrono>
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <numbers>
+#include <optional>
 #include <string>
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "pico_bridge/drive_kinematics.hpp"
 #include "pico_bridge/gyro_bias.hpp"
+#include "pico_bridge/latest_cmd_vel.hpp"
 #include "pico_bridge/pico_protocol.hpp"
 #include "pico_bridge/serial_port.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
+#include "std_msgs/msg/string.hpp"
 
 namespace pico_bridge {
+namespace {
+
+using SteadyClock = std::chrono::steady_clock;
 
 constexpr double kRadiansPerRev = 2.0 * std::numbers::pi;
 constexpr double kDegreesPerRadian = 180.0 / std::numbers::pi;
 constexpr size_t kGyroBiasWindowSize = 50;         // 1 s at 50 Hz
 constexpr double kGyroBiasMaxSpreadRadps = 0.035;  // 2 deg/s
-constexpr double kImuSilenceS = 1.0;
+constexpr auto kImuSilence = std::chrono::seconds(1);
+
+SteadyClock::duration steady_duration(double seconds) {
+  return std::chrono::duration_cast<SteadyClock::duration>(
+      std::chrono::duration<double>(seconds));
+}
+
+}  // namespace
 
 class PicoBridgeNode : public rclcpp::Node {
  public:
@@ -39,21 +55,23 @@ class PicoBridgeNode : public rclcpp::Node {
             .is_left_reversed = declare_parameter<bool>("left_reversed"),
             .is_right_reversed = declare_parameter<bool>("right_reversed")},
         ticks_per_rev_(declare_parameter<double>("ticks_per_rev")),
-        cmd_vel_timeout_(rclcpp::Duration::from_seconds(
-            declare_parameter("cmd_vel_timeout_s", 1.0))),
+        latest_cmd_vel_(
+            steady_duration(declare_parameter("cmd_vel_timeout_s", 1.0))),
         imu_frame_id_(declare_parameter("imu_frame_id", "imu_link")),
-        // Gyro while driving, with motor vibration (results/README.md); accel
-        // still, largest axis in results/imu/2026-11-23-run01-still-172s.csv.
+        // Gyro while driving at the old 44 Hz filter: replays did worse with
+        // the 10 Hz filter's lower value (docs/milestone-2.md).
         gyro_variance_(declare_parameter("gyro_variance", 4.1e-4)),
+        // Still, largest axis in results/imu/2026-11-23-run01-still-172s.csv.
         accel_variance_(declare_parameter("accel_variance", 5.3e-4)),
         serial_(port_path_),
         gyro_bias_(kGyroBiasWindowSize, kGyroBiasMaxSpreadRadps),
-        last_cmd_vel_time_(now()),
-        last_imu_time_(now()) {
+        last_imu_arrival_(SteadyClock::now()) {
+    // Best effort: a command lost to WiFi stays lost, not replayed late.
     cmd_vel_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
-        "cmd_vel", 10, [this](const geometry_msgs::msg::Twist& twist) {
-          last_cmd_vel_ = twist;
-          last_cmd_vel_time_ = now();
+        "cmd_vel", rclcpp::QoS(1).best_effort(),
+        [this](const geometry_msgs::msg::Twist& twist) {
+          latest_cmd_vel_.record({twist.linear.x, twist.angular.z},
+                                 SteadyClock::now());
         });
     joint_state_publisher_ =
         create_publisher<sensor_msgs::msg::JointState>("joint_states", 10);
@@ -61,6 +79,9 @@ class PicoBridgeNode : public rclcpp::Node {
         create_publisher<sensor_msgs::msg::BatteryState>("battery", 10);
     imu_publisher_ =
         create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", 10);
+    // Latched, so a late subscriber still learns why the motors stopped.
+    stop_reason_publisher_ = create_publisher<std_msgs::msg::String>(
+        "pico/stop_reason", rclcpp::QoS(1).transient_local());
     timer_ = create_wall_timer(std::chrono::milliseconds(20),
                                [this] { exchange_with_pico(); });
     RCLCPP_INFO(get_logger(), "Connected to the Pico on %s",
@@ -70,13 +91,8 @@ class PicoBridgeNode : public rclcpp::Node {
  private:
   // Every 20 ms: send the command, then handle the Pico's lines.
   void exchange_with_pico() {
-    if (!serial_.write_text(command_for_pico()) ||
-        !serial_.read_available(received_)) {
-      // A reconnected Pico is a new device: exit and let systemd restart us.
-      RCLCPP_FATAL(get_logger(), "Lost the serial link to the Pico; exiting");
-      rclcpp::shutdown();
-      return;
-    }
+    serial_.write_text(command_for_pico());
+    serial_.read_available(received_);
     while (const auto line = take_line(received_)) {
       if (const auto status = parse_status_line(*line)) {
         handle_status(*status);
@@ -94,17 +110,16 @@ class PicoBridgeNode : public rclcpp::Node {
 
   // Publishes once the gyro offset is measured: keep the robot still at start.
   void handle_imu(const ImuSample& sample) {
-    last_imu_time_ = now();
+    last_imu_arrival_ = SteadyClock::now();
     if (is_imu_silent_) {
       RCLCPP_INFO(get_logger(), "IMU data is back");
       is_imu_silent_ = false;
     }
-    if (!gyro_bias_.is_ready()) {
-      measure_gyro_bias(sample.gyro_radps);
-    }
     if (gyro_bias_.is_ready()) {
       publish_imu(sample);
+      return;
     }
+    measure_gyro_bias(sample.gyro_radps);
   }
 
   void measure_gyro_bias(const Vector3& gyro_radps) {
@@ -128,7 +143,7 @@ class PicoBridgeNode : public rclcpp::Node {
 
   void publish_imu(const ImuSample& sample) {
     sensor_msgs::msg::Imu imu;
-    imu.header.stamp = last_imu_time_;
+    imu.header.stamp = now();
     imu.header.frame_id = imu_frame_id_;
     imu.orientation_covariance[0] = -1.0;  // no orientation estimate
     const Vector3 gyro = gyro_bias_.remove_from(sample.gyro_radps);
@@ -146,12 +161,12 @@ class PicoBridgeNode : public rclcpp::Node {
   }
 
   void warn_once_if_imu_silent() {
-    if (is_imu_silent_ || (now() - last_imu_time_).seconds() <= kImuSilenceS) {
+    if (is_imu_silent_ ||
+        SteadyClock::now() - last_imu_arrival_ <= kImuSilence) {
       return;
     }
     is_imu_silent_ = true;
-    RCLCPP_WARN(get_logger(), "No IMU data from the Pico for %.0f s",
-                kImuSilenceS);
+    RCLCPP_WARN(get_logger(), "No IMU data from the Pico for over a second");
   }
 
   void power_off_once(const std::string& request) {
@@ -162,22 +177,20 @@ class PicoBridgeNode : public rclcpp::Node {
     RCLCPP_FATAL(get_logger(), "Pico: %s. Powering off the Pi",
                  request.c_str());
     // -n: fail rather than wait for a password nobody will type.
-    const int result = std::system("sudo -n /usr/bin/systemctl poweroff");
-    if (result != 0) {
+    const int status = std::system("sudo -n /usr/bin/systemctl poweroff");
+    if (status != 0) {
+      const int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : status;
       RCLCPP_ERROR(get_logger(),
-                   "Power-off failed (status %d): is the sudoers rule from "
+                   "Power-off failed (exit code %d): is the sudoers rule from "
                    "docs/pi-setup.md in place?",
-                   result);
+                   exit_code);
     }
   }
 
   std::string command_for_pico() const {
-    const bool is_cmd_vel_fresh =
-        now() - last_cmd_vel_time_ <= cmd_vel_timeout_;
-    const geometry_msgs::msg::Twist twist =
-        is_cmd_vel_fresh ? last_cmd_vel_ : geometry_msgs::msg::Twist();
+    const RobotSpeed speed = latest_cmd_vel_.current(SteadyClock::now());
     const MotorPair motors = motor_mapping_.to_motors(
-        wheel_rps_from_twist(twist.linear.x, twist.angular.z, geometry_));
+        wheel_rps_from_twist(speed.linear_mps, speed.angular_radps, geometry_));
     return format_command(motors.first, motors.second);
   }
 
@@ -185,7 +198,7 @@ class PicoBridgeNode : public rclcpp::Node {
     const rclcpp::Time stamp = now();
     publish_joint_states(status, stamp);
     publish_battery(status.battery_volts, stamp);
-    log_stop_change(status.stop_reason);
+    handle_stop_reason(status.stop_reason);
   }
 
   void publish_joint_states(const PicoStatus& status,
@@ -209,41 +222,49 @@ class PicoBridgeNode : public rclcpp::Node {
     sensor_msgs::msg::BatteryState battery;
     battery.header.stamp = stamp;
     battery.voltage = static_cast<float>(volts);
+    constexpr float kUnmeasured = std::numeric_limits<float>::quiet_NaN();
+    battery.temperature = battery.current = battery.charge = kUnmeasured;
+    battery.capacity = battery.design_capacity = kUnmeasured;
+    battery.percentage = kUnmeasured;
+    battery.power_supply_technology =
+        sensor_msgs::msg::BatteryState::POWER_SUPPLY_TECHNOLOGY_LIPO;
     battery.present = true;
     battery_publisher_->publish(battery);
   }
 
-  void log_stop_change(const std::string& stop_reason) {
+  // Logs and publishes the stop reason when it changes, and at the start.
+  void handle_stop_reason(const std::string& stop_reason) {
     if (stop_reason == last_stop_reason_) {
       return;
     }
-    if (stop_reason == kNoStopReason) {
-      RCLCPP_INFO(get_logger(), "Pico stop cleared");
-    } else {
+    if (stop_reason != kNoStopReason) {
       RCLCPP_WARN(get_logger(), "Pico stopped the motors: %s",
                   stop_reason.c_str());
+    } else if (last_stop_reason_) {
+      RCLCPP_INFO(get_logger(), "Pico stop cleared");
     }
     last_stop_reason_ = stop_reason;
+    std_msgs::msg::String message;
+    message.data = stop_reason;
+    stop_reason_publisher_->publish(message);
   }
 
   std::string port_path_;
   DriveGeometry geometry_;
   MotorMapping motor_mapping_;
   double ticks_per_rev_;
-  rclcpp::Duration cmd_vel_timeout_;
+  LatestCmdVel latest_cmd_vel_;
   std::string imu_frame_id_;
   double gyro_variance_;
   double accel_variance_;
   SerialPort serial_;
   GyroBias gyro_bias_;
   bool is_imu_silent_ = false;
+  SteadyClock::time_point last_imu_arrival_;
   std::string received_;
-  std::string last_stop_reason_ = kNoStopReason;
+  std::optional<std::string> last_stop_reason_;
   bool is_powering_off_ = false;
 
-  geometry_msgs::msg::Twist last_cmd_vel_;
-  rclcpp::Time last_cmd_vel_time_;
-  rclcpp::Time last_imu_time_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr
       cmd_vel_subscription_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr
@@ -251,6 +272,7 @@ class PicoBridgeNode : public rclcpp::Node {
   rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr
       battery_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr stop_reason_publisher_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 
@@ -261,7 +283,8 @@ int main(int argc, char** argv) {
   try {
     rclcpp::spin(std::make_shared<pico_bridge::PicoBridgeNode>());
   } catch (const std::exception& error) {
-    // E.g. no Pico at boot; systemd retries.
+    // No Pico at boot, or the link lost: a reconnected Pico is a new device,
+    // so exit and let systemd start us again.
     RCLCPP_FATAL(rclcpp::get_logger("pico_bridge"), "%s", error.what());
     rclcpp::shutdown();
     return 1;

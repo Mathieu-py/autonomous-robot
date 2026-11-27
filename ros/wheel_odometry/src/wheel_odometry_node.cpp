@@ -1,4 +1,4 @@
-// /joint_states to /odom and the odom -> base_link transform.
+// /joint_states to /odom.
 
 #include <algorithm>
 #include <array>
@@ -8,11 +8,9 @@
 #include <optional>
 #include <string>
 
-#include "geometry_msgs/msg/transform_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
-#include "tf2_ros/transform_broadcaster.h"
 #include "wheel_odometry/diff_drive_odometry.hpp"
 
 namespace wheel_odometry {
@@ -24,6 +22,9 @@ constexpr char kRightJoint[] = "right_wheel_joint";
 // Never observed on a flat floor: very uncertain, so a fusing filter ignores
 // them.
 constexpr double kUnobservedVariance = 1e6;
+
+// Longer silences: the bridge restarted; the Pico's counts may be back at 0.
+constexpr double kNewStreamGapS = 1.0;
 
 // Rows and columns of an odometry covariance.
 enum class Axis { kX, kY, kZ, kRoll, kPitch, kYaw };
@@ -52,10 +53,6 @@ class WheelOdometryNode : public rclcpp::Node {
             declare_parameter("angular_velocity_variance", 3.1e-4)),
         odometry_(geometry_) {
     odom_publisher_ = create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-    // Off once the EKF publishes this transform.
-    if (declare_parameter("publish_tf", true)) {
-      tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-    }
     joint_state_subscription_ =
         create_subscription<sensor_msgs::msg::JointState>(
             "joint_states", 10,
@@ -92,10 +89,22 @@ class WheelOdometryNode : public rclcpp::Node {
                            kRightJoint);
       return;
     }
+    if (is_new_wheel_stream(msg.header.stamp)) {
+      odometry_.forget_wheel_angles();
+    }
+    last_stamp_ = msg.header.stamp;
     odometry_.update(left->angle_rad, right->angle_rad);
     publish(
         msg.header.stamp,
         velocity_from_wheels(left->speed_radps, right->speed_radps, geometry_));
+  }
+
+  bool is_new_wheel_stream(const rclcpp::Time& stamp) const {
+    if (!last_stamp_) {
+      return false;
+    }
+    const double gap_s = (stamp - *last_stamp_).seconds();
+    return gap_s < 0.0 || gap_s > kNewStreamGapS;
   }
 
   void publish(const builtin_interfaces::msg::Time& stamp,
@@ -124,16 +133,6 @@ class WheelOdometryNode : public rclcpp::Node {
     set_variance(odom.twist.covariance, Axis::kY, linear_velocity_variance_);
     set_variance(odom.twist.covariance, Axis::kYaw, angular_velocity_variance_);
     odom_publisher_->publish(odom);
-
-    if (tf_broadcaster_) {
-      geometry_msgs::msg::TransformStamped transform;
-      transform.header = odom.header;
-      transform.child_frame_id = base_frame_;
-      transform.transform.translation.x = pose.x_m;
-      transform.transform.translation.y = pose.y_m;
-      transform.transform.rotation = odom.pose.pose.orientation;
-      tf_broadcaster_->sendTransform(transform);
-    }
   }
 
   DriveGeometry geometry_;
@@ -143,9 +142,9 @@ class WheelOdometryNode : public rclcpp::Node {
   double linear_velocity_variance_;
   double angular_velocity_variance_;
   DiffDriveOdometry odometry_;
+  std::optional<rclcpp::Time> last_stamp_;
 
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
-  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr
       joint_state_subscription_;
 };

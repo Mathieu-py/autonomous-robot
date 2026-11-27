@@ -12,9 +12,9 @@ class SerialPort {
   SerialPort(const SerialPort&) = delete;
   SerialPort& operator=(const SerialPort&) = delete;
 
-  // Both return false once the port has failed.
-  bool write_text(const std::string& text);
-  bool read_available(std::string& buffer);  // appends what has arrived
+  // Both throw once the link is lost, e.g. the Pico unplugged or reset.
+  void write_text(const std::string& text);
+  void read_available(std::string& buffer);  // appends what has arrived
 
  private:
   int fd_;

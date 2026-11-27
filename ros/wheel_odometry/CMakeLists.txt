@@ -7,16 +7,12 @@ include_directories(include)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(tf2_ros REQUIRED)
 
 add_executable(wheel_odometry_node src/wheel_odometry_node.cpp)
 target_link_libraries(wheel_odometry_node PRIVATE
   rclcpp::rclcpp
-  tf2_ros::tf2_ros
-  ${geometry_msgs_TARGETS}
   ${nav_msgs_TARGETS}
   ${sensor_msgs_TARGETS})
 

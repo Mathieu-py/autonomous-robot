@@ -9,12 +9,14 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_executable(pico_bridge_node src/pico_bridge_node.cpp src/serial_port.cpp)
 target_link_libraries(pico_bridge_node PRIVATE
   rclcpp::rclcpp
   ${geometry_msgs_TARGETS}
-  ${sensor_msgs_TARGETS})
+  ${sensor_msgs_TARGETS}
+  ${std_msgs_TARGETS})
 
 install(TARGETS pico_bridge_node DESTINATION lib/${PROJECT_NAME})
 
@@ -24,6 +26,7 @@ if(BUILD_TESTING)
   target_include_directories(pico_protocol_test PRIVATE test)
   ament_add_gtest(drive_kinematics_test test/drive_kinematics_test.cpp)
   ament_add_gtest(gyro_bias_test test/gyro_bias_test.cpp)
+  ament_add_gtest(latest_cmd_vel_test test/latest_cmd_vel_test.cpp)
 endif()
 
 ament_package()

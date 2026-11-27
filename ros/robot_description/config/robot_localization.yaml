@@ -1,5 +1,6 @@
 # robot_localization's EKF, the yardstick for our own: fuses the wheels' speed
-# and turn rate with the gyro's turn rate. Publishes /odometry/filtered.
+# and turn rate with the gyro's turn rate, on its default process noise.
+# Publishes /odometry/filtered.
 ekf_filter_node:
   ros__parameters:
     frequency: 50.0

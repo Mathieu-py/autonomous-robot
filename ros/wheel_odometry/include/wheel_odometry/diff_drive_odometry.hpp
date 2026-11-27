@@ -51,6 +51,9 @@ class DiffDriveOdometry {
     last_angles_ = WheelAngles{left_angle_rad, right_angle_rad};
   }
 
+  // The next update only sets the starting angles; the pose is kept.
+  void forget_wheel_angles() { last_angles_.reset(); }
+
   const Pose2D& pose() const { return pose_; }
 
  private:

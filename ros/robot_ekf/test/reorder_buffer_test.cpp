@@ -33,8 +33,8 @@ TEST(ReorderBuffer, DropsAReadingOlderThanOneAlreadyReleased) {
   buffer.add(1.000, 1);
   buffer.add(1.050, 2);
   released(buffer);
-  buffer.add(0.995, 0);
-  buffer.add(1.200, 3);
+  EXPECT_FALSE(buffer.add(0.995, 0));
+  EXPECT_TRUE(buffer.add(1.200, 3));
   EXPECT_EQ(released(buffer), (std::vector<int>{2}));
 }
 

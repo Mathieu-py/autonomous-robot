@@ -3,7 +3,7 @@
 <package format="3">
   <name>pico_bridge</name>
   <version>0.1.0</version>
-  <description>Bridges /cmd_vel to the Pico motor firmware over USB serial, and publishes wheel states, battery voltage and the IMU.</description>
+  <description>Bridges /cmd_vel to the Pico motor firmware over USB serial, and publishes wheel states, battery voltage, the IMU and the Pico's stop reason.</description>
   <maintainer email="mathieu.sevestre@gmail.com">Mathieu Sevestre</maintainer>
   <license>MIT</license>
 
@@ -12,6 +12,7 @@
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
   <exec_depend>robot_description</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>

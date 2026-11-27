@@ -7,19 +7,24 @@
 #include <numbers>
 
 using robot_ekf::Ekf;
-using robot_ekf::ProcessNoise;
+using robot_ekf::GyroReading;
+using robot_ekf::kInitialGyroBiasSpreadRadps;
+using robot_ekf::kProcessNoise;
+using robot_ekf::WheelReading;
 
 namespace {
 
-constexpr ProcessNoise kNoise{
-    .accel_mps2 = 1.0, .yaw_accel_radps2 = 5.0, .gyro_bias_drift_radps = 3e-4};
-// The bridge removes the gyro's start-up offset; this much may be left.
-constexpr double kInitialGyroBiasSpreadRadps = 0.002;
 constexpr double kPeriodS = 0.02;
 constexpr double kSpeedVariance = 2.2e-6;  // as measured on the robot
 constexpr double kTurnVariance = 3.1e-4;
 constexpr double kGyroVariance = 4.1e-4;
 constexpr double kDegree = std::numbers::pi / 180.0;
+
+WheelReading wheels(double speed_mps, double turn_radps) {
+  return {speed_mps, turn_radps, kSpeedVariance, kTurnVariance};
+}
+
+GyroReading gyro(double turn_radps) { return {turn_radps, kGyroVariance}; }
 
 // One 20 ms reading from each sensor, wheels first as on the robot. Returns
 // whether the wheels' turn rate was used.
@@ -27,9 +32,9 @@ bool step(Ekf& ekf, double& t_s, double speed_mps, double wheel_turn_radps,
           double gyro_turn_radps) {
   t_s += kPeriodS;
   ekf.predict_to(t_s);
-  const bool is_turn_used = ekf.update_wheels(speed_mps, wheel_turn_radps,
-                                              kSpeedVariance, kTurnVariance);
-  ekf.update_gyro(gyro_turn_radps, kGyroVariance);
+  const bool is_turn_used =
+      ekf.update_wheels(wheels(speed_mps, wheel_turn_radps));
+  ekf.update_gyro(gyro(gyro_turn_radps));
   return is_turn_used;
 }
 
@@ -41,7 +46,7 @@ void drive(Ekf& ekf, double& t_s, int readings, double speed_mps,
 }
 
 Ekf settled_ekf(double& t_s) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   drive(ekf, t_s, 1500, 0.0, 0.0, 0.0);  // 30 s still: the offset settles
   return ekf;
 }
@@ -49,7 +54,7 @@ Ekf settled_ekf(double& t_s) {
 }  // namespace
 
 TEST(Ekf, DrivesStraightForward) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   double t_s = 0.0;
   drive(ekf, t_s, 500, 0.1, 0.0, 0.0);  // 10 s
   EXPECT_NEAR(ekf.state()(Ekf::kX), 1.0, 0.003);
@@ -57,7 +62,7 @@ TEST(Ekf, DrivesStraightForward) {
 }
 
 TEST(Ekf, GrowsLessSureOfThePositionWhileDriving) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   double t_s = 0.0;
   drive(ekf, t_s, 500, 0.1, 0.0, 0.0);
   const Ekf::Matrix after_1_m = ekf.covariance();
@@ -67,7 +72,7 @@ TEST(Ekf, GrowsLessSureOfThePositionWhileDriving) {
 }
 
 TEST(Ekf, LearnsAGyroOffsetAndKeepsTheHeading) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   double t_s = 0.0;
   // The wheels say straight; the gyro reads an offset of 0.06 deg/s.
   drive(ekf, t_s, 3000, 0.1, 0.0, 0.001);  // 60 s
@@ -76,7 +81,7 @@ TEST(Ekf, LearnsAGyroOffsetAndKeepsTheHeading) {
 }
 
 TEST(Ekf, FollowsAQuarterTurn) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   double t_s = 0.0;
   const double turn_radps = std::numbers::pi / 4.0;
   drive(ekf, t_s, 100, 0.0, turn_radps, turn_radps);  // 2 s
@@ -84,7 +89,7 @@ TEST(Ekf, FollowsAQuarterTurn) {
 }
 
 TEST(Ekf, SpinsTwiceWithAWrappedHeadingAndAValidCovariance) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   double t_s = 0.0;
   const double turn_radps = 4.0 * std::numbers::pi / (1250 * kPeriodS);
   drive(ekf, t_s, 1250, 0.0, turn_radps, turn_radps);  // 720 deg
@@ -135,7 +140,7 @@ TEST(Ekf, TrustsTheWheelsAgainOnceTheyAgree) {
 }
 
 TEST(Ekf, ChecksTheWheelsAgainstTheOffsetCorrectedGyro) {
-  Ekf ekf(kNoise, 0.5);
+  Ekf ekf(kProcessNoise, 0.5);
   double t_s = 0.0;
   drive(ekf, t_s, 1500, 0.0, 0.0, 0.2);  // learns a 0.2 rad/s offset
   for (int i = 0; i < 50; ++i) {
@@ -150,11 +155,11 @@ TEST(Ekf, UsesTheWheelsWhenTheGyroStops) {
   for (int i = 0; i < 2; ++i) {
     t_s += kPeriodS;
     ekf.predict_to(t_s);
-    ekf.update_wheels(0.0, 0.0, kSpeedVariance, kTurnVariance);
+    ekf.update_wheels(wheels(0.0, 0.0));
   }
   t_s += kPeriodS;
   ekf.predict_to(t_s);
-  EXPECT_TRUE(ekf.update_wheels(0.0, 0.0, kSpeedVariance, kTurnVariance));
+  EXPECT_TRUE(ekf.update_wheels(wheels(0.0, 0.0)));
 }
 
 TEST(Ekf, CatchesASlipThroughMissedGyroReadings) {
@@ -164,18 +169,18 @@ TEST(Ekf, CatchesASlipThroughMissedGyroReadings) {
   for (int i = 0; i < 50; ++i) {
     t_s += kPeriodS;
     ekf.predict_to(t_s);
-    if (!ekf.update_wheels(0.0, 0.0, kSpeedVariance, kTurnVariance)) {
+    if (!ekf.update_wheels(wheels(0.0, 0.0))) {
       was_slip_caught = true;
     }
     if (i % 3 != 2) {  // every third gyro reading lost
-      ekf.update_gyro(0.5, kGyroVariance);
+      ekf.update_gyro(gyro(0.5));
     }
   }
   EXPECT_TRUE(was_slip_caught);
 }
 
 TEST(Ekf, DoesNotExtrapolateAcrossAGap) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   double t_s = 0.0;
   drive(ekf, t_s, 50, 0.1, 0.0, 0.0);
   const double x_m = ekf.state()(Ekf::kX);
@@ -184,8 +189,31 @@ TEST(Ekf, DoesNotExtrapolateAcrossAGap) {
   EXPECT_EQ(ekf.state()(Ekf::kX), x_m);
 }
 
+TEST(Ekf, ForgetsTheGyroOffsetAcrossAGap) {
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
+  double t_s = 0.0;
+  drive(ekf, t_s, 3000, 0.0, 0.0, 0.001);  // learns a 0.001 rad/s offset
+  const double yaw_rad = ekf.state()(Ekf::kYaw);
+  // The bridge restarted, re-measured the offset, and now removes it.
+  t_s += 5.0;
+  ekf.predict_to(t_s);
+  EXPECT_EQ(ekf.state()(Ekf::kGyroBias), 0.0);
+  drive(ekf, t_s, 500, 0.0, 0.0, 0.0);  // 10 s still
+  EXPECT_NEAR(ekf.state()(Ekf::kYaw), yaw_rad, 0.05 * kDegree);
+}
+
+TEST(Ekf, RestartsAtTheOrigin) {
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
+  double t_s = 0.0;
+  drive(ekf, t_s, 50, 0.1, 0.5, 0.5);
+  ekf.restart();
+  EXPECT_EQ(ekf.state(), Ekf::Vector::Zero());
+  EXPECT_EQ(ekf.covariance(),
+            Ekf(kProcessNoise, kInitialGyroBiasSpreadRadps).covariance());
+}
+
 TEST(Ekf, PredictsNothingForAnEarlierTime) {
-  Ekf ekf(kNoise, kInitialGyroBiasSpreadRadps);
+  Ekf ekf(kProcessNoise, kInitialGyroBiasSpreadRadps);
   double t_s = 0.0;
   drive(ekf, t_s, 50, 0.1, 0.0, 0.0);
   const double x_m = ekf.state()(Ekf::kX);

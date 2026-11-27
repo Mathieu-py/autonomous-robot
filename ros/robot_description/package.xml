@@ -3,12 +3,13 @@
 <package format="3">
   <name>robot_description</name>
   <version>0.1.0</version>
-  <description>The robot's URDF, its shared drive geometry, and the launch file for its frames, odometry, the two EKFs and the LiDAR, and SLAM Toolbox's config.</description>
+  <description>The robot's URDF, its shared drive geometry, and launch files and configs for its frames, odometry, the two EKFs, the LiDAR and SLAM Toolbox.</description>
   <maintainer email="mathieu.sevestre@gmail.com">Mathieu Sevestre</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>robot_ekf</exec_depend>
   <exec_depend>robot_localization</exec_depend>

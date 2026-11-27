@@ -19,21 +19,48 @@ struct ProcessNoise {
   double gyro_bias_drift_radps;
 };
 
+// The tuning from the square tests (docs/milestone-2.md).
+inline constexpr ProcessNoise kProcessNoise{
+    .accel_mps2 = 1.0, .yaw_accel_radps2 = 5.0, .gyro_bias_drift_radps = 3e-4};
+// The bridge removes the gyro's start-up offset; this much may be left.
+inline constexpr double kInitialGyroBiasSpreadRadps = 0.002;
+
+struct WheelReading {
+  double speed_mps;
+  double turn_radps;
+  double speed_variance;
+  double turn_variance;
+};
+
+struct GyroReading {
+  double turn_radps;
+  double variance;
+};
+
 class Ekf {
  public:
   enum Index { kX, kY, kYaw, kSpeed, kTurn, kGyroBias, kSize };
   using Vector = Eigen::Matrix<double, kSize, 1>;
   using Matrix = Eigen::Matrix<double, kSize, kSize>;
 
-  // Starts at rest at the origin; the gyro offset is unknown by about this.
   Ekf(const ProcessNoise& noise, double initial_gyro_bias_spread_radps)
-      : noise_(noise) {
-    covariance_.diagonal() << 0.0, 0.0, 0.0, 1.0, 1.0,
-        initial_gyro_bias_spread_radps * initial_gyro_bias_spread_radps;
+      : noise_(noise),
+        initial_gyro_bias_variance_(squared(initial_gyro_bias_spread_radps)) {
+    restart();
   }
 
-  // Moves the estimate on to t_s; an earlier t_s does nothing. Across a gap
-  // the sensors had stopped, so it doesn't extrapolate.
+  // At rest at the origin, with the gyro offset unknown again.
+  void restart() {
+    state_.setZero();
+    covariance_.setZero();
+    time_s_.reset();
+    last_gyro_.reset();
+    forget_motion_and_gyro_offset();
+  }
+
+  // Moves the estimate on to t_s; an earlier t_s does nothing. After a gap,
+  // usually the bridge restarting and re-measuring the gyro offset, the
+  // motion and offset start over.
   void predict_to(double t_s) {
     if (!time_s_) {
       time_s_ = t_s;
@@ -45,6 +72,7 @@ class Ekf {
     }
     time_s_ = t_s;
     if (dt > kMaxPredictS) {
+      forget_motion_and_gyro_offset();
       return;
     }
 
@@ -69,27 +97,25 @@ class Ekf {
   }
 
   // Returns false when the turn rate was skipped as wheel slip.
-  bool update_wheels(double speed_mps, double turn_radps, double speed_variance,
-                     double turn_variance) {
-    update(row(kSpeed), speed_mps, speed_variance);
-    is_turning_ = std::abs(turn_radps) > kTurningRadps;
+  bool update_wheels(const WheelReading& wheels) {
+    update(row(kSpeed), wheels.speed_mps, wheels.speed_variance);
+    is_turning_ = std::abs(wheels.turn_radps) > kTurningRadps;
     if (has_fresh_gyro()) {
-      slip_readings_ = disagrees_with_gyro(turn_radps, turn_variance)
-                           ? slip_readings_ + 1
-                           : 0;
+      slip_readings_ = disagrees_with_gyro(wheels) ? slip_readings_ + 1 : 0;
       if (slip_readings_ >= kSlipReadings) {
         return false;
       }
     }
-    update(row(kTurn), turn_radps, turn_variance, is_offset_learnable());
+    update(row(kTurn), wheels.turn_radps, wheels.turn_variance,
+           is_offset_learnable());
     return true;
   }
 
   // The gyro reads the turn rate plus its zero offset.
-  void update_gyro(double turn_radps, double variance) {
-    update(row(kTurn) + row(kGyroBias), turn_radps, variance,
+  void update_gyro(const GyroReading& gyro) {
+    update(row(kTurn) + row(kGyroBias), gyro.turn_radps, gyro.variance,
            is_offset_learnable());
-    last_gyro_ = GyroReading{*time_s_, turn_radps, variance};
+    last_gyro_ = LastGyro{*time_s_, gyro};
   }
 
   const Vector& state() const { return state_; }
@@ -98,10 +124,9 @@ class Ekf {
  private:
   using Row = Eigen::Matrix<double, 1, kSize>;
 
-  struct GyroReading {
+  struct LastGyro {
     double time_s;
-    double turn_radps;
-    double variance;
+    GyroReading reading;
   };
 
   // Wheel turn rates this many spreads from the gyro's, for this many readings
@@ -120,15 +145,28 @@ class Ekf {
     return std::remainder(angle_rad, 2.0 * std::numbers::pi);
   }
 
+  // Keeps the pose; the speed, turn rate and gyro offset start over.
+  void forget_motion_and_gyro_offset() {
+    state_.segment<3>(kSpeed).setZero();
+    covariance_.middleRows<3>(kSpeed).setZero();
+    covariance_.middleCols<3>(kSpeed).setZero();
+    covariance_.diagonal().segment<3>(kSpeed) << 1.0, 1.0,
+        initial_gyro_bias_variance_;
+    slip_readings_ = 0;
+    is_turning_ = false;
+  }
+
   bool has_fresh_gyro() const {
     return last_gyro_ && *time_s_ - last_gyro_->time_s <= kGyroMaxAgeS;
   }
 
-  bool disagrees_with_gyro(double turn_radps, double turn_variance) const {
-    const double gyro_turn_radps = last_gyro_->turn_radps - state_(kGyroBias);
-    const double spread = std::sqrt(turn_variance + last_gyro_->variance +
+  bool disagrees_with_gyro(const WheelReading& wheels) const {
+    const GyroReading& gyro = last_gyro_->reading;
+    const double gyro_turn_radps = gyro.turn_radps - state_(kGyroBias);
+    const double spread = std::sqrt(wheels.turn_variance + gyro.variance +
                                     covariance_(kGyroBias, kGyroBias));
-    return std::abs(turn_radps - gyro_turn_radps) > kSlipGateSpreads * spread;
+    return std::abs(wheels.turn_radps - gyro_turn_radps) >
+           kSlipGateSpreads * spread;
   }
 
   // Only straight or still, with the wheels and gyro agreeing, is any gyro
@@ -159,10 +197,11 @@ class Ekf {
   }
 
   ProcessNoise noise_;
-  Vector state_ = Vector::Zero();
-  Matrix covariance_ = Matrix::Zero();
+  double initial_gyro_bias_variance_;
+  Vector state_;
+  Matrix covariance_;
   std::optional<double> time_s_;
-  std::optional<GyroReading> last_gyro_;
+  std::optional<LastGyro> last_gyro_;
   int slip_readings_ = 0;
   bool is_turning_ = false;
 };

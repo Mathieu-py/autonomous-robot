@@ -73,7 +73,7 @@ Run the bridge (once section 6 is done, it starts at boot instead). It needs `ro
 ros2 run pico_bridge pico_bridge_node --ros-args --params-file ~/robot_ws/install/robot_description/share/robot_description/config/robot.yaml
 ```
 
-**Check:** it logs `Connected to the Pico on /dev/pico`; `ros2 topic hz /joint_states` shows 50 Hz; `/battery` reads the supply. Measured: 50.00 Hz with 0.02 ms jitter on the Pi, 11.93 V on a 12 V supply, and turning the first wheel by hand moved the left joint.
+**Check:** it logs `Connected to the Pico on /dev/pico`; `ros2 topic hz /joint_states` shows 50 Hz; `/battery` reads the supply. Keep the robot still for its first second: the bridge measures the gyro's offset (it logs `Gyro offset`) before `/imu/data_raw` starts, also at 50 Hz. `/pico/stop_reason` holds the Pico's latest stop reason, `none` while the motors may run. Measured: 50.00 Hz with 0.02 ms jitter on the Pi, 11.93 V on a 12 V supply, and turning the first wheel by hand moved the left joint.
 
 A low-battery stop when the bridge starts is expected if the motor supply is off: the Pico reads the battery through the divider, so it reads about 0 V until the supply comes on, and the stop clears once it's above 11.0 V.
 
@@ -171,7 +171,7 @@ sudo systemctl start pico-bridge
 
 ## 8. Frames, wheel odometry and the EKF
 
-`robot_state_publisher` publishes the URDF's frames (`base_link` on the floor under the axle, the wheels, the caster and `imu_link`), and `wheel_odometry` turns `/joint_states` into `/odom`. Two EKFs combine `/odom`'s speed and turn rate with the gyro's turn rate, side by side for comparison: robot_localization's (`config/ekf.yaml`) into `/odometry/filtered`, and ours (`robot_ekf`) into `/ekf/odom`. Ours also estimates the gyro's zero offset, published on `/ekf/gyro_bias`, and turns by the gyro alone while the wheels slip; it logs `Wheels slipping` when that happens. It sorts the two sensors' readings by time first, so `/ekf/odom` runs about 30 ms behind `/odom`. Ours was the more accurate in the square tests, so it also publishes the `odom → base_link` transform: the robot's pose for RViz, `tools/odom_drive.py` and, later, Nav2. The launch file turns `wheel_odometry`'s transform off (`publish_tf: false`), and `config/ekf.yaml` turns robot_localization's off. The `rosdep install` line in section 2 installs robot_localization and Eigen. With the bridge running, in its own terminal on the Pi:
+`robot_state_publisher` publishes the URDF's frames (`base_link` on the floor under the axle, the wheels, the caster and `imu_link`), and `wheel_odometry` turns `/joint_states` into `/odom`. Two EKFs combine `/odom`'s speed and turn rate with the gyro's turn rate, side by side for comparison: robot_localization's (`config/robot_localization.yaml`) into `/odometry/filtered`, and ours (`robot_ekf`) into `/ekf/odom`. Ours also estimates the gyro's zero offset, published on `/ekf/gyro_bias`, and turns by the gyro alone while the wheels slip; it logs `Wheels slipping` when that happens. If both sensors stop for over a second, usually the bridge restarting, it keeps the pose but learns the speed, turn rate and gyro offset afresh, since the bridge re-measures the offset when it starts. It sorts the two sensors' readings by time first, so `/ekf/odom` runs about 30 ms behind `/odom`. Ours was the more accurate in the square tests, so it also publishes the `odom → base_link` transform: the robot's pose for RViz, `tools/odom_drive.py` and, later, Nav2. `wheel_odometry` doesn't publish one, and `config/robot_localization.yaml` turns robot_localization's off. The `rosdep install` line in section 2 installs robot_localization and Eigen. With the bridge running, in its own terminal on the Pi:
 
 ```bash
 ros2 launch robot_description robot.launch.py
@@ -193,7 +193,7 @@ and in another:
 ros2 bag play <bag dir> --clock --topics /joint_states /imu/data_raw
 ```
 
-`wheel_odometry` recomputes `/odom` from the wheels, so the recording's own `/odom` is left out. Each gyro message keeps the covariance it was recorded with, and the EKFs weigh the gyro by that. Relaunch before replaying the same recording again: `wheel_odometry` carries on from where the last replay ended. Our EKF restarts by itself when time goes back, and logs `Time went back`.
+`wheel_odometry` recomputes `/odom` from the wheels, so the recording's own `/odom` is left out. Each gyro message keeps the covariance it was recorded with, and the EKFs weigh the gyro by that. Relaunch before replaying the same recording again: robot_localization ignores readings older than the last it received, so `/odometry/filtered` would freeze. (Our EKF restarts by itself when time goes back, logging `Time went back`, and `wheel_odometry` carries on from where the last replay ended.)
 
 ## 9. The LiDAR
 

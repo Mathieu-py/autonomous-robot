@@ -13,13 +13,14 @@ class ReorderBuffer {
  public:
   explicit ReorderBuffer(double delay_s) : delay_s_(delay_s) {}
 
-  // A reading older than the last one released is too late, and dropped.
-  void add(double t_s, const Reading& reading) {
+  // False for a reading older than the last one released: too late, dropped.
+  bool add(double t_s, const Reading& reading) {
     if (t_s < released_s_) {
-      return;
+      return false;
     }
     pending_.emplace(t_s, reading);
     newest_s_ = std::max(newest_s_, t_s);
+    return true;
   }
 
   // Calls handle(t_s, reading) for each reading old enough, oldest first.

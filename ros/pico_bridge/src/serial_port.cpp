@@ -27,7 +27,10 @@ SerialPort::SerialPort(const std::string& path)
   cfmakeraw(&settings);
   cfsetspeed(&settings, B115200);  // ignored by USB serial, but must be set
   settings.c_cflag |= CLOCAL | CREAD | HUPCL;
-  tcsetattr(fd_, TCSANOW, &settings);
+  if (tcsetattr(fd_, TCSANOW, &settings) != 0) {
+    close(fd_);
+    throw std::runtime_error("can't set up " + path);
+  }
   tcflush(fd_, TCIOFLUSH);
 
   // Exclusive, so a second bridge can't split the data.
@@ -43,24 +46,40 @@ SerialPort::SerialPort(const std::string& path)
 
 SerialPort::~SerialPort() { close(fd_); }
 
-bool SerialPort::write_text(const std::string& text) {
-  if (write(fd_, text.data(), text.size()) >= 0) {
-    return true;
-  }
-  // A full buffer (Pico not reading, e.g. a bench test) isn't a lost link.
-  return errno == EAGAIN || errno == EWOULDBLOCK;
+namespace {
+
+bool is_would_block(int error) {
+  return error == EAGAIN || error == EWOULDBLOCK;
 }
 
-bool SerialPort::read_available(std::string& buffer) {
+// A hang-up usually shows first as EIO from write().
+[[noreturn]] void throw_lost_link(int error) {
+  throw std::runtime_error(
+      std::string("lost the Pico (unplugged or reset?): ") +
+      std::strerror(error));
+}
+
+}  // namespace
+
+void SerialPort::write_text(const std::string& text) {
+  // A full buffer (Pico not reading) isn't a lost link.
+  if (write(fd_, text.data(), text.size()) < 0 && !is_would_block(errno)) {
+    throw_lost_link(errno);
+  }
+}
+
+void SerialPort::read_available(std::string& buffer) {
   char chunk[512];
   while (true) {
     const ssize_t count = read(fd_, chunk, sizeof(chunk));
     if (count > 0) {
       buffer.append(chunk, static_cast<size_t>(count));
-    } else if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-      return true;  // nothing more to read for now
+    } else if (count == 0) {
+      throw std::runtime_error("lost the Pico (unplugged or reset?): hang-up");
+    } else if (is_would_block(errno)) {
+      return;  // nothing more to read for now
     } else {
-      return false;  // 0 = hang-up: unplugged or reset
+      throw_lost_link(errno);
     }
   }
 }

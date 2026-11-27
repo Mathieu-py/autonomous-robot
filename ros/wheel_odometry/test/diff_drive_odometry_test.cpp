@@ -91,6 +91,16 @@ TEST(DiffDriveOdometry, KeepsYawWithinPlusMinusPi) {
   EXPECT_NEAR(odometry.pose().yaw_rad, -kPi / 2.0, 1e-9);
 }
 
+TEST(DiffDriveOdometry, KeepsThePoseWhenTheWheelAnglesRestart) {
+  DiffDriveOdometry odometry(kGeometry);
+  drive(odometry, 1.0, 1.0);
+  const double x_m = odometry.pose().x_m;
+  odometry.forget_wheel_angles();
+  odometry.update(0.0, 0.0);  // the Pico rebooted: counts back at zero
+  odometry.update(angle_for(0.1), angle_for(0.1));
+  EXPECT_NEAR(odometry.pose().x_m, x_m + 0.1, 1e-9);
+}
+
 TEST(VelocityFromWheels, SpinningLeftIsPositiveAngular) {
   const auto velocity = velocity_from_wheels(-1.0, 1.0, kGeometry);
   EXPECT_NEAR(velocity.linear_mps, 0.0, 1e-12);

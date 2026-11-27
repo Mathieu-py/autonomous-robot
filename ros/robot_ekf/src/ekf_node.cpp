@@ -23,26 +23,23 @@ class EkfNode : public rclcpp::Node {
  public:
   EkfNode()
       : Node("robot_ekf"),
-        process_noise_{.accel_mps2 = declare_parameter("accel_noise_mps2", 1.0),
-                       .yaw_accel_radps2 =
-                           declare_parameter("yaw_accel_noise_radps2", 5.0),
-                       .gyro_bias_drift_radps =
-                           declare_parameter("gyro_bias_drift_radps", 3e-4)},
-        // The bridge removes the gyro's start-up offset; this much may be left.
-        initial_gyro_bias_spread_radps_(
-            declare_parameter("initial_gyro_bias_spread_radps", 0.002)),
-        ekf_(process_noise_, initial_gyro_bias_spread_radps_),
+        ekf_(
+            {.accel_mps2 = declare_parameter("accel_noise_mps2",
+                                             kProcessNoise.accel_mps2),
+             .yaw_accel_radps2 = declare_parameter(
+                 "yaw_accel_noise_radps2", kProcessNoise.yaw_accel_radps2),
+             .gyro_bias_drift_radps = declare_parameter(
+                 "gyro_bias_drift_radps", kProcessNoise.gyro_bias_drift_radps)},
+            declare_parameter("initial_gyro_bias_spread_radps",
+                              kInitialGyroBiasSpreadRadps)),
         readings_(kReorderDelayS),
         odom_frame_(declare_parameter("odom_frame", "odom")),
-        base_frame_(declare_parameter("base_frame", "base_link")) {
+        base_frame_(declare_parameter("base_frame", "base_link")),
+        tf_broadcaster_(*this) {
     estimate_publisher_ =
         create_publisher<nav_msgs::msg::Odometry>("ekf/odom", 10);
     gyro_bias_publisher_ =
         create_publisher<std_msgs::msg::Float64>("ekf/gyro_bias", 10);
-    // Off if another node publishes this transform.
-    if (declare_parameter("publish_tf", true)) {
-      tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-    }
     wheels_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
         "odom", 10,
         [this](const nav_msgs::msg::Odometry& msg) { on_wheels(msg); });
@@ -64,24 +61,18 @@ class EkfNode : public rclcpp::Node {
   // Further back than this is a replay restarting or the clock stepping back.
   static constexpr double kTimeJumpS = 1.0;
 
-  struct WheelReading {
+  struct StampedWheels {
     builtin_interfaces::msg::Time stamp;
-    double speed_mps;
-    double turn_radps;
-    double speed_variance;
-    double turn_variance;
+    WheelReading wheels;
   };
-  struct GyroReading {
-    double turn_radps;
-    double variance;
-  };
-  using Reading = std::variant<WheelReading, GyroReading>;
+  using Reading = std::variant<StampedWheels, GyroReading>;
 
   void on_wheels(const nav_msgs::msg::Odometry& msg) {
+    const auto& twist = msg.twist;
     queue(msg.header.stamp,
-          WheelReading{msg.header.stamp, msg.twist.twist.linear.x,
-                       msg.twist.twist.angular.z, msg.twist.covariance[kXX],
-                       msg.twist.covariance[kYawYaw]});
+          StampedWheels{msg.header.stamp,
+                        {twist.twist.linear.x, twist.twist.angular.z,
+                         twist.covariance[kXX], twist.covariance[kYawYaw]}});
   }
 
   void on_gyro(const sensor_msgs::msg::Imu& msg) {
@@ -95,10 +86,13 @@ class EkfNode : public rclcpp::Node {
     if (t_s < readings_.newest_s() - kTimeJumpS) {
       RCLCPP_WARN(get_logger(), "Time went back %.1f s: restarting the EKF",
                   readings_.newest_s() - t_s);
-      ekf_ = Ekf(process_noise_, initial_gyro_bias_spread_radps_);
+      ekf_.restart();
       readings_.clear();
     }
-    readings_.add(t_s, reading);
+    if (!readings_.add(t_s, reading)) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+                           "Dropped a reading that arrived too late");
+    }
     readings_.release([this](double reading_s, const Reading& oldest) {
       apply(reading_s, oldest);
     });
@@ -107,18 +101,15 @@ class EkfNode : public rclcpp::Node {
   void apply(double t_s, const Reading& reading) {
     ekf_.predict_to(t_s);
     if (const auto* gyro = std::get_if<GyroReading>(&reading)) {
-      ekf_.update_gyro(gyro->turn_radps, gyro->variance);
+      ekf_.update_gyro(*gyro);
       return;
     }
-    const auto& wheels = std::get<WheelReading>(reading);
-    const bool is_turn_used =
-        ekf_.update_wheels(wheels.speed_mps, wheels.turn_radps,
-                           wheels.speed_variance, wheels.turn_variance);
-    if (!is_turn_used) {
+    const auto& stamped = std::get<StampedWheels>(reading);
+    if (!ekf_.update_wheels(stamped.wheels)) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
                            "Wheels slipping: turning by the gyro alone");
     }
-    publish(wheels.stamp);
+    publish(stamped.stamp);
   }
 
   // Once per wheel reading, 50 Hz.
@@ -154,30 +145,26 @@ class EkfNode : public rclcpp::Node {
     }
     estimate_publisher_->publish(estimate);
 
-    if (tf_broadcaster_) {
-      geometry_msgs::msg::TransformStamped transform;
-      transform.header = estimate.header;
-      transform.child_frame_id = base_frame_;
-      transform.transform.translation.x = s(Ekf::kX);
-      transform.transform.translation.y = s(Ekf::kY);
-      transform.transform.rotation = estimate.pose.pose.orientation;
-      tf_broadcaster_->sendTransform(transform);
-    }
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header = estimate.header;
+    transform.child_frame_id = base_frame_;
+    transform.transform.translation.x = s(Ekf::kX);
+    transform.transform.translation.y = s(Ekf::kY);
+    transform.transform.rotation = estimate.pose.pose.orientation;
+    tf_broadcaster_.sendTransform(transform);
 
     std_msgs::msg::Float64 gyro_bias;
     gyro_bias.data = s(Ekf::kGyroBias);
     gyro_bias_publisher_->publish(gyro_bias);
   }
 
-  ProcessNoise process_noise_;
-  double initial_gyro_bias_spread_radps_;
   Ekf ekf_;
   ReorderBuffer<Reading> readings_;
   std::string odom_frame_;
   std::string base_frame_;
+  tf2_ros::TransformBroadcaster tf_broadcaster_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr estimate_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gyro_bias_publisher_;
-  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr wheels_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr gyro_subscription_;
 };
