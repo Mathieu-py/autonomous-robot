@@ -48,6 +48,7 @@ jobs:
         shell: bash
         run: |
           source /opt/ros/jazzy/setup.bash
-          colcon build --packages-select pico_bridge wheel_odometry robot_ekf
+          # Up to, so robot_description (pico_bridge's run dependency) is installed.
+          colcon build --packages-up-to pico_bridge wheel_odometry robot_ekf
           colcon test --packages-select pico_bridge wheel_odometry robot_ekf
           colcon test-result --verbose
