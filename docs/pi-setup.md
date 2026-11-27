@@ -218,7 +218,7 @@ The URDF's `laser` frame is on the laser plane, 151.8 mm up, at the LiDAR's cent
 
 ## 10. Mapping with SLAM Toolbox
 
-SLAM Toolbox builds the map from `/scan` and the EKF's `odom → base_link`, and publishes `/map` and the `map → odom` transform. `config/slam.yaml` is its default online, asynchronous config with two changes: `base_frame: base_link` and the C1's 12 m range. The `rosdep install` line in section 2 installs it. With `robot.launch.py` running, in another terminal on the Pi:
+SLAM Toolbox builds the map from `/scan` and the EKF's `odom → base_link`, and publishes `/map` and the `map → odom` transform. `config/slam.yaml` is its default online, asynchronous config with three changes: `base_frame: base_link`, the C1's 12 m range, and `use_map_saver: false`. That last one removes SLAM Toolbox's `save_map` service, which passes the requested file name to a shell, so anyone on the network could run commands on the Pi; maps are saved with `map_saver_cli` instead (below). The `rosdep install` line in section 2 installs it. With `robot.launch.py` running, in another terminal on the Pi:
 
 ```bash
 ros2 launch robot_description slam.launch.py

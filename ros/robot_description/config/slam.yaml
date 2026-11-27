@@ -16,7 +16,7 @@ slam_toolbox:
     map_frame: map
     base_frame: base_link  # ours
     scan_topic: /scan
-    use_map_saver: true
+    use_map_saver: false  # ours: its save_map service runs a shell command
     mode: mapping #localization
 
     # if you'd like to immediately start continuing a map at a given pose
