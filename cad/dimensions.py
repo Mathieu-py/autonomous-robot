@@ -69,6 +69,19 @@ LIDAR_SCAN_HEIGHT = 29.8             # laser plane above the bottom
 LIDAR_HOLE_SPACING = 43.0            # 4 x M2.5, square
 LIDAR_SCREW_MAX_DEPTH = 4.0
 
+# --- RPLIDAR C1's USB adapter board, measured ---
+LIDAR_ADAPTER_LENGTH = 32.5          # LiDAR socket edge to USB-C edge
+LIDAR_ADAPTER_WIDTH = 20.65
+LIDAR_ADAPTER_HEIGHT = 8.25          # board and tallest part, at the socket end
+LIDAR_ADAPTER_UNDERSIDE = 1.0        # joints below the board
+LIDAR_ADAPTER_HOLE_DIAMETER = 2.4    # 2 x M2 at opposite corners, ~21.4 apart
+LIDAR_ADAPTER_HOLE_INSET = 2.4       # centres from the long edges
+# Component side up, socket edge toward you: this hole is on the right.
+LIDAR_ADAPTER_SOCKET_HOLE = 12.4     # centre from the socket edge
+LIDAR_ADAPTER_USB_HOLE = 5.4         # the other's centre from the USB-C edge
+LIDAR_ADAPTER_SOCKET_PLUG = 6.5      # past the board; 63 overall with both plugs
+LIDAR_ADAPTER_USB_PLUG = 24.0
+
 # --- Cytron MDD3A, datasheet (figure 2) ---
 MDD3A_LENGTH = 48.26
 MDD3A_WIDTH = 41.66
@@ -83,9 +96,10 @@ PI_HOLES_LENGTH = 58.0
 PI_HOLES_WIDTH = 49.0
 PI_HOLE_INSET = 3.5                  # from the corner, on both edges
 PI_HOLE_DIAMETER = 2.7               # M2.5
-PI_USB_C_FROM_FRONT = 11.2           # from the edge nearest the holes
+PI_USB_C_FROM_END = 11.2             # from the short edge nearest the holes
 PI_HEIGHT = 17.5                     # measured: board underside to the USB ports' top
 PI_USB_C_PLUG = (19.0, 15.0)         # measured: plug length, then room to bend
+PI_FAR_USB_STACK = 45.0              # measured: USB-C edge to the farther stack's middle
 
 # --- Raspberry Pi Pico 2 W, datasheet ---
 PICO_LENGTH = 51.0

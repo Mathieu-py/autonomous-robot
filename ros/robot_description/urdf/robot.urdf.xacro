@@ -19,10 +19,21 @@
   <xacro:property name="imu_board_thickness" value="0.0016"/>
   <xacro:property name="imu_z"
       value="${upper_deck_bottom + deck_thickness + imu_standoff + imu_board_thickness / 2}"/>
+  <!-- RPLIDAR C1 on its plate, 35 mm of standoffs above the upper deck. -->
+  <xacro:property name="lidar_x" value="-0.045"/>
+  <xacro:property name="lidar_y" value="-0.010"/>
+  <xacro:property name="lidar_plate_bottom" value="${upper_deck_bottom + deck_thickness + 0.035}"/>
+  <xacro:property name="lidar_plate_thickness" value="0.004"/>
+  <xacro:property name="lidar_size" value="0.0556"/>
+  <xacro:property name="lidar_base_height" value="0.0231"/>
+  <xacro:property name="lidar_scan_height" value="0.0298"/>
+  <xacro:property name="laser_z"
+      value="${lidar_plate_bottom + lidar_plate_thickness + lidar_scan_height}"/>
 
   <material name="deck"><color rgba="0.85 0.85 0.85 1"/></material>
   <material name="tyre"><color rgba="0.1 0.1 0.1 1"/></material>
   <material name="imu"><color rgba="0.85 0.25 0.25 1"/></material>
+  <material name="lidar"><color rgba="0.25 0.25 0.28 1"/></material>
 
   <xacro:macro name="deck" params="name bottom">
     <link name="${name}">
@@ -86,6 +97,21 @@
     <parent link="base_link"/>
     <child link="imu_link"/>
     <origin xyz="0 0 ${imu_z}" rpy="0 0 ${-pi / 2}"/>
+  </joint>
+
+  <!-- On the laser plane. The driver's x points at the LiDAR's cable, which
+       faces the rear: checked in RViz with a box in front and to the left. -->
+  <link name="laser">
+    <visual>
+      <origin xyz="0 0 ${lidar_base_height / 2 - lidar_scan_height}"/>
+      <geometry><box size="${lidar_size} ${lidar_size} ${lidar_base_height}"/></geometry>
+      <material name="lidar"/>
+    </visual>
+  </link>
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser"/>
+    <origin xyz="${lidar_x} ${lidar_y} ${laser_z}" rpy="0 0 ${pi}"/>
   </joint>
 
 </robot>

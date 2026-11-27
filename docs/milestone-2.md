@@ -21,6 +21,8 @@ Four square sessions got there, one change at a time ([square tests](../results/
 | 03 | Steering by our EKF, on the Pi | 0.75° too much, 21.2 mm | 0.92° too little, 33.2 mm |
 | 04 | Gyro filter 10 Hz instead of 44 Hz | 0.17° too much, 7.9 mm | 1.04° too little, 24.9 mm |
 
+**Rechecked the next day** ([run 05](../results/README.md#square-tests-squares), 27 November): two turns on the spot each way read as on 26 November, our EKF 0.027% too much against 0.02%, so the 10 Hz filter fixed the gyro's error changing between days. One square each way: our EKF 0.44° too much turn per square, and 8.0 mm from where the robot really stopped.
+
 ## What was built
 
 **Wheel odometry** ([ros/wheel_odometry/](../ros/wheel_odometry/)): turns `/joint_states` into `/odom`. The wheel size and spacing come from driving on the floor, not the calipers: the wheels roll as if 67.0 mm across and turn as if 170.4 mm apart ([odometry calibration](../results/README.md#odometry-calibration-odometry)). Its covariances are the measured noise ([odometry and IMU noise](../results/README.md#odometry-and-imu-noise)).
@@ -67,7 +69,7 @@ Each was tested by replaying a recording through the `Ekf` class with one thing 
 
 ## Not done yet
 
-- **One session with the 10 Hz filter.** The gyro's error used to change between days; a short check on another day (two turns each way and a square each way) would confirm it holds now.
-- **`/odom` misses 0.74% of two turns on the spot,** against 0.2% after the floor calibration on 25 November. It doesn't affect our EKF.
-- **Our EKF's end still lands a few millimetres outside the square,** after every square, both ways; 20 mm in run 03, under 10 mm in run 04.
+- **`/odom` misses 0.65–0.74% of two turns on the spot** (runs 04 and 05), against 0.2% after the floor calibration on 25 November. It doesn't affect our EKF.
+- **Our EKF's end still lands a few millimetres outside the square,** after every square, both ways; 20 mm in run 03, under 10 mm in runs 04 and 05.
+- **Turns that carried on further.** In run 05's right square every turn ran 0.66–1.05° past its target, against about 0.25° in run 04, and our EKF counted 0.55° too much turn in that square. One square each way can't tell a trend from one bad square; the next square test will show.
 - **Hard floor only.** Carpet, and the extra weight of the LiDAR, haven't been tested; the square test is quick to repeat for both.

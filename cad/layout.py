@@ -9,13 +9,19 @@ from dimensions import (BATTERY_LENGTH, BATTERY_WIDTH, CASTER_FLANGE_LENGTH,
                         CONVERTER_TAB_LENGTH, CONVERTER_WIDTH,
                         GEARBOX_FACE_TO_WHEEL, GEARBOX_HOLE_CIRCLE,
                         GEARBOX_HOLE_DEPTH, GEARBOX_LENGTH, IMU_LENGTH,
-                        IMU_WIDTH, M3_SCREW_LENGTH, MDD3A_LENGTH, MDD3A_WIDTH,
+                        IMU_WIDTH, LIDAR_ADAPTER_HOLE_INSET,
+                        LIDAR_ADAPTER_LENGTH, LIDAR_ADAPTER_SOCKET_HOLE,
+                        LIDAR_ADAPTER_SOCKET_PLUG,
+                        LIDAR_ADAPTER_USB_HOLE, LIDAR_ADAPTER_USB_PLUG,
+                        LIDAR_ADAPTER_WIDTH, LIDAR_HOLE_SPACING,
+                        M3_SCREW_LENGTH, MDD3A_LENGTH, MDD3A_WIDTH,
                         MICROSWITCH_HOLES_TO_ROLLER_SIDE, MICROSWITCH_WIDTH,
                         MOTOR_LENGTH, PERFBOARD_HOLES_LENGTH,
                         PERFBOARD_HOLES_WIDTH, PERFBOARD_LENGTH,
                         PERFBOARD_WIDTH, PI_HEIGHT, PI_HOLE_INSET,
                         PI_HOLES_LENGTH, PI_HOLES_WIDTH, PI_LENGTH,
-                        PI_USB_C_FROM_FRONT, PI_USB_C_PLUG, PI_WIDTH,
+                        PI_FAR_USB_STACK, PI_USB_C_FROM_END,
+                        PI_USB_C_PLUG, PI_WIDTH, LIDAR_SIZE,
                         SHAFT_OFFSET, WHEEL_DIAMETER, WHEEL_WIDTH)
 
 # --- Drive geometry ---
@@ -85,22 +91,62 @@ IMU = (0.0, 0.0, IMU_LENGTH, IMU_WIDTH)                 # above the wheel axis
 CONVERTER = (-45.0, 70.0, CONVERTER_LENGTH + 2 * CONVERTER_TAB_LENGTH,
              CONVERTER_WIDTH)                           # tabs along x; powers the Pi
 MDD3A = (50.0, 0.0, MDD3A_LENGTH, MDD3A_WIDTH)
-# 10 mm right of centre, so its USB-C plug can bend before the converter.
-PI_X = -60.0
-PI_Y = -10.0
-PI = (PI_X, PI_Y, PI_LENGTH, PI_WIDTH)               # USB-A to the rear, USB-C left
-PI_FRONT_X = PI_X + PI_LENGTH / 2
-PI_HOLES = [(PI_FRONT_X - PI_HOLE_INSET - dx, PI_Y + sy * PI_HOLES_WIDTH / 2)
-            for dx in (0.0, PI_HOLES_LENGTH) for sy in (1, -1)]
-PI_STANDOFF = 6.0
-PI_USB_C_X = PI_FRONT_X - PI_USB_C_FROM_FRONT
 ROCKER_SWITCH = (90.0, -45.0)        # front-right, in reach
 # The centre slot takes the wires from below; the other, the converter's input.
 CABLE_SLOTS = [(19.0, 0.0, 10.0, 40.0), (-55.0, 43.0, 30.0, 10.0)]
 
-# --- LiDAR plate, on M3 standoffs above the Pi ---
+# The LiDAR plate's pillars were printed around this point; the LiDAR sits on it.
 LIDAR_X = -45.0                      # mount with its cable side to the rear
-LIDAR_PLATE = (LIDAR_X, PI_Y, 70.0, 70.0)
+LIDAR_Y = -10.0
+LIDAR_PLATE_PILLARS = [(LIDAR_X + dx, LIDAR_Y + dy) for dx in (-32.0, 32.0) for dy in (32.0, -32.0)]
+
+# Turned on 26 Nov (holes drilled by hand): between the front and rear
+# pillars, its right end 48 mm past the right ones.
+PI_X = LIDAR_X
+PI_Y = LIDAR_Y - 32.0 - 48.0 + PI_LENGTH / 2
+PI = (PI_X, PI_Y, PI_WIDTH, PI_LENGTH)               # USB-A to the left, USB-C forward
+PI_FRONT_X = PI_X + PI_WIDTH / 2
+PI_HOLE_END_Y = PI_Y - PI_LENGTH / 2
+PI_PORTS_Y = PI_Y + PI_LENGTH / 2                    # USB-A and Ethernet, toward the converter
+PI_HOLES = [(PI_X + sx * PI_HOLES_WIDTH / 2, PI_HOLE_END_Y + PI_HOLE_INSET + dy)
+            for sx in (1, -1) for dy in (0.0, PI_HOLES_LENGTH)]
+PI_STANDOFF = 6.0
+PI_USB_C_Y = PI_HOLE_END_Y + PI_USB_C_FROM_END
+PI_LIDAR_USB_X = PI_FRONT_X - PI_FAR_USB_STACK       # the rear stack; the Pico is in the middle one
+
+# --- LiDAR plate, on M3 standoffs above the Pi ---
+LIDAR_HOLES = [(LIDAR_X + sx * LIDAR_HOLE_SPACING / 2, LIDAR_Y + sy * LIDAR_HOLE_SPACING / 2)
+               for sx in (1, -1) for sy in (1, -1)]
+PILLAR_TO_PLATE_EDGE = 6.0           # room round each hole for its counterbore
+LIDAR_PLATE_FRONT_X = LIDAR_X + 32.0 + PILLAR_TO_PLATE_EDGE
+LIDAR_PLATE_BACK_X = LIDAR_X - 32.0 - PILLAR_TO_PLATE_EDGE
+LIDAR_PLATE_LEFT_Y = 41.0            # extended left for the USB adapter
+LIDAR_PLATE_RIGHT_Y = LIDAR_Y - 32.0 - PILLAR_TO_PLATE_EDGE
+LIDAR_PLATE = ((LIDAR_PLATE_FRONT_X + LIDAR_PLATE_BACK_X) / 2,
+               (LIDAR_PLATE_LEFT_Y + LIDAR_PLATE_RIGHT_Y) / 2,
+               LIDAR_PLATE_FRONT_X - LIDAR_PLATE_BACK_X,
+               LIDAR_PLATE_LEFT_Y - LIDAR_PLATE_RIGHT_Y)
 LIDAR_PLATE_THICKNESS = 4.0
+LIDAR_PLATE_CORNER_RADIUS = PILLAR_TO_PLATE_EDGE  # round the pillar holes, so an even wall
 LIDAR_PLATE_HEIGHT = 35.0            # 11.5 mm of air above the Pi's fan
-LIDAR_PLATE_PILLARS = [(LIDAR_X + dx, PI_Y + dy) for dx in (-32.0, 32.0) for dy in (32.0, -32.0)]
+# (diameter, depth). From the top: an M3 x 6 grips 4 mm of the standoff, as on the upper deck.
+PLATE_PILLAR_COUNTERBORE = (6.5, 2.0)
+# From below: an M2.5 x 6 goes 3.5 mm into the LiDAR, under its 4 mm limit.
+LIDAR_SCREW_COUNTERBORE = (5.5, 1.5)
+
+# --- LiDAR's USB adapter, lengthwise along the LiDAR's left side ---
+# Socket to the rear, near where the LiDAR's cable leaves; USB-C forward.
+LIDAR_ADAPTER_STANDOFF = 6.0         # M2, as the IMU; a nut under the plate
+LIDAR_ADAPTER_GAP = 1.0              # to the LiDAR's side
+LIDAR_ADAPTER_Y = LIDAR_Y + LIDAR_SIZE / 2 + LIDAR_ADAPTER_GAP + LIDAR_ADAPTER_WIDTH / 2
+# Its LiDAR plug ends flush with the LiDAR's back face.
+LIDAR_ADAPTER_SOCKET_EDGE_X = LIDAR_X - LIDAR_SIZE / 2 + LIDAR_ADAPTER_SOCKET_PLUG
+LIDAR_ADAPTER_USB_EDGE_X = LIDAR_ADAPTER_SOCKET_EDGE_X + LIDAR_ADAPTER_LENGTH
+LIDAR_ADAPTER_X = LIDAR_ADAPTER_SOCKET_EDGE_X + LIDAR_ADAPTER_LENGTH / 2
+LIDAR_ADAPTER = (LIDAR_ADAPTER_X, LIDAR_ADAPTER_Y, LIDAR_ADAPTER_LENGTH, LIDAR_ADAPTER_WIDTH)
+# The socket end's hole is on the long edge nearer the LiDAR, the other on the outer edge.
+LIDAR_ADAPTER_HOLES = [
+    (LIDAR_ADAPTER_SOCKET_EDGE_X + LIDAR_ADAPTER_SOCKET_HOLE,
+     LIDAR_ADAPTER_Y - LIDAR_ADAPTER_WIDTH / 2 + LIDAR_ADAPTER_HOLE_INSET),
+    (LIDAR_ADAPTER_USB_EDGE_X - LIDAR_ADAPTER_USB_HOLE,
+     LIDAR_ADAPTER_Y + LIDAR_ADAPTER_WIDTH / 2 - LIDAR_ADAPTER_HOLE_INSET)]

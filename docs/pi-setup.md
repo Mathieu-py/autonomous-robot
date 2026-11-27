@@ -39,6 +39,7 @@ Four ROS packages: `pico_bridge` (the Pico's serial link), `robot_description` (
 ```bash
 mkdir -p ~/robot_ws/src && cd ~/robot_ws/src
 git clone https://github.com/Mathieu-py/autonomous-robot.git
+git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git  # the LiDAR driver, section 9
 cd ~/robot_ws
 sudo rosdep init; rosdep update
 rosdep install --from-paths src --ignore-src -y
@@ -179,7 +180,7 @@ It logs `Wheel diameter 0.0670 m, separation 0.1704 m`, and `ros2 topic hz /odom
 **Replaying a recording** through the same nodes, on the laptop, needs a recording with `/joint_states` and `/imu/data_raw`. In one terminal:
 
 ```bash
-ros2 launch robot_description robot.launch.py use_sim_time:=true
+ros2 launch robot_description robot.launch.py use_sim_time:=true lidar:=false
 ```
 
 and in another:
@@ -190,3 +191,27 @@ ros2 bag play <bag dir> --clock --topics /joint_states /imu/data_raw
 
 `wheel_odometry` recomputes `/odom` from the wheels, so the recording's own `/odom` is left out. Each gyro message keeps the covariance it was recorded with, and the EKFs weigh the gyro by that. Relaunch before replaying the same recording again: `wheel_odometry` carries on from where the last replay ended. Our EKF restarts by itself when time goes back, and logs `Time went back`.
 
+## 9. The LiDAR
+
+The RPLIDAR C1 plugs into one of the Pi's USB ports through its adapter board, and Slamtec's `sllidar_ros2` driver publishes `/scan`. `robot.launch.py` starts it with the rest; `lidar:=false` leaves it out. Its 800 mA start-up draw needs section 1's `usb_max_current_enable=1`.
+
+Name it `/dev/lidar`, as the Pico is `/dev/pico`. `10c4:ea60` is the adapter's CP2102N USB serial chip:
+
+```bash
+echo 'SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="lidar", GROUP="dialout", MODE="0660"' | sudo tee /etc/udev/rules.d/99-lidar.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo udevadm settle; ls -l /dev/lidar
+```
+
+The driver isn't in Jazzy's packages, so section 2 clones it next to this repo and builds it with the rest, as in the [bench test](bench-tests.md#2-lidar). On a Pi set up before 27 November:
+
+```bash
+cd ~/robot_ws/src
+git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git
+cd ~/robot_ws
+colcon build --packages-select sllidar_ros2
+```
+
+The URDF's `laser` frame is on the laser plane, 151.8 mm up, at the LiDAR's centre from [cad/layout.py](../cad/layout.py) (45 mm behind the axle, 10 mm right of centre), turned 180°: the driver's x points at the LiDAR's cable, which faces the rear.
+
+**Check, 27 November 2026:** on its own (`ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/lidar`) it logs health OK and `Standard, sample rate: 5 Khz, max_distance: 16.0 m, scan frequency:10.0 Hz`; `ros2 topic hz /scan` shows 10.02 Hz with 1.2 ms of jitter, and `vcgencmd get_throttled` stays at `0x0` on the battery. In RViz with Fixed Frame `laser`, a box 30 cm in front of the robot showed on the laser's −x axis, and one 30 cm to its left on −y, hence the 180° turn.

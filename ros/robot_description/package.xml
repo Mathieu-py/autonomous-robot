@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_description</name>
   <version>0.1.0</version>
-  <description>The robot's URDF, its shared drive geometry, and the launch file for its frames, odometry and the two EKFs.</description>
+  <description>The robot's URDF, its shared drive geometry, and the launch file for its frames, odometry, the two EKFs and the LiDAR.</description>
   <maintainer email="mathieu.sevestre@gmail.com">Mathieu Sevestre</maintainer>
   <license>MIT</license>
 
@@ -13,6 +13,7 @@
   <exec_depend>robot_ekf</exec_depend>
   <exec_depend>robot_localization</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>sllidar_ros2</exec_depend>
   <exec_depend>wheel_odometry</exec_depend>
   <exec_depend>xacro</exec_depend>
 
