@@ -11,8 +11,19 @@ float sign_of(float value) {
 
 }  // namespace
 
+float SetpointRamp::allowed_share(float target_rps,
+                                  float period_seconds) const {
+  const float max_step = max_accel_rps2_ * period_seconds;
+  const float step = std::fabs(target_rps - setpoint_rps_);
+  return step <= max_step ? 1.0f : max_step / step;
+}
+
+float SetpointRamp::partway_to(float target_rps, float share) const {
+  return setpoint_rps_ + (target_rps - setpoint_rps_) * share;
+}
+
 RampedSetpoint SetpointRamp::advance(float target_rps, float period_seconds) {
-  const float max_step = max_accel_ * period_seconds;
+  const float max_step = max_accel_rps2_ * period_seconds;
   const float step =
       std::clamp(target_rps - setpoint_rps_, -max_step, max_step);
 

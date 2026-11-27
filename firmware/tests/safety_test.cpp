@@ -2,13 +2,10 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <initializer_list>
-#include <ostream>
 
-// Shows the reason's name when a check fails.
-inline void PrintTo(StopReason reason, std::ostream* os) {
-  *os << stop_reason_name(reason);
-}
+#include "stop_reason_printer.h"
 
 namespace {
 
@@ -17,16 +14,17 @@ constexpr float kPeriod = 0.02f;
 SafetyInputs running_normally() {
   return {.is_bumper_pressed = false,
           .battery_volts = 12.0f,
-          .first = {.count = 0, .speed_rps = 1.0f, .power = 0.35f},
-          .second = {.count = 0, .speed_rps = 1.0f, .power = 0.35f},
+          .is_first_stalling = false,
+          .is_second_stalling = false,
           .is_stop_commanded = false,
           .period_seconds = kPeriod};
 }
 
 // Feeds the same inputs for the given time and returns the last result.
 StopReason run_for(SafetyMonitor& safety, SafetyInputs inputs, float seconds) {
+  const long periods = std::lround(seconds / kPeriod);
   StopReason reason = StopReason::kNone;
-  for (float t = 0.0f; t < seconds; t += kPeriod) {
+  for (long i = 0; i < periods; ++i) {
     reason = safety.update(inputs);
   }
   return reason;
@@ -128,17 +126,22 @@ TEST(SafetyMonitor, LowBatteryOnlyClearsOnceRecharged) {
 TEST(SafetyMonitor, StallStopsOnlyAfterHalfASecond) {
   SafetyMonitor safety;
   SafetyInputs inputs = running_normally();
-  inputs.second.power = 0.6f;
-  inputs.second.speed_rps = 0.0f;
-  EXPECT_EQ(run_for(safety, inputs, 0.4f), StopReason::kNone);
-  EXPECT_EQ(run_for(safety, inputs, 0.2f), StopReason::kSecondStall);
+  inputs.is_second_stalling = true;
+  EXPECT_EQ(run_for(safety, inputs, 0.48f), StopReason::kNone);
+  EXPECT_EQ(safety.update(inputs), StopReason::kSecondStall);
 }
 
-TEST(SafetyMonitor, WheelThatStartsMovingResetsTheStallTimer) {
+TEST(SafetyMonitor, FirstWheelStallStops) {
+  SafetyMonitor safety;
+  SafetyInputs inputs = running_normally();
+  inputs.is_first_stalling = true;
+  EXPECT_EQ(run_for(safety, inputs, 0.5f), StopReason::kFirstStall);
+}
+
+TEST(SafetyMonitor, WheelThatRecoversResetsTheStallTimer) {
   SafetyMonitor safety;
   SafetyInputs stalled = running_normally();
-  stalled.first.power = 0.6f;
-  stalled.first.speed_rps = 0.0f;
+  stalled.is_first_stalling = true;
   run_for(safety, stalled, 0.4f);
   safety.update(running_normally());
   EXPECT_EQ(run_for(safety, stalled, 0.4f), StopReason::kNone);

@@ -147,11 +147,15 @@ To run the bridge by hand instead, `sudo systemctl stop pico-bridge` first: only
 
 ## 7. Reflashing the Pico from the Pi
 
-The Pico's BOOTSEL button is under the upper deck, but the firmware reboots into BOOTSEL when its serial port is set to 1200 baud. Build on the laptop, then copy the firmware over from the repo folder in WSL (use the Pi's address, `10.0.0.226`, if `robot-pi.local` doesn't resolve):
+The Pico's BOOTSEL button is under the upper deck, but the firmware reboots into BOOTSEL when its serial port is set to 1200 baud. Build on the laptop with pico-sdk 2.3.1 (CMake stops on anything older), then copy the firmware over from the repo folder in WSL (use the Pi's address, `10.0.0.226`, if `robot-pi.local` doesn't resolve):
 
 ```bash
+export PICO_SDK_PATH=~/pico/pico-sdk
+cmake -S firmware -B firmware/build && cmake --build firmware/build -j
 scp firmware/build/robot_firmware.uf2 msevestre@robot-pi.local:~
 ```
+
+Flash only drive builds (`kMode = Mode::kDrive`) this way. A bench build starts its test once a serial viewer connects, and the bridge's open port counts as one. The test stops for good on any serial input, so the bridge's first command stops it, but run bench tests with the bridge off (`sudo systemctl disable --now pico-bridge`), the wheels lifted, and a serial viewer, where any key stops the test. PuTTY and `screen` send nothing on connect; minicom's modem init string would stop the test at once.
 
 On the Pi:
 

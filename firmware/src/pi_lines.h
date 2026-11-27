@@ -13,3 +13,6 @@ PiLine format_status_line(const PeriodReport& report);
 
 // "I,<ax>,<ay>,<az>,<gx>,<gy>,<gz>" in m/s^2 and rad/s, chip axes.
 PiLine format_imu_line(const ImuReading& reading);
+
+// Asks the Pi to power off; repeated while the battery is critically low.
+constexpr char kShutdownLine[] = "SHUTDOWN: battery critically low";

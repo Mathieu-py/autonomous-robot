@@ -18,23 +18,6 @@ ImuBytes bytes_with(int offset, uint8_t high, uint8_t low) {
   return bytes;
 }
 
-TEST(ImuReadingFromBytes, OneGUpReadsStandardGravity) {
-  const auto reading = imu_reading_from_bytes(bytes_with(4, 0x20, 0x00));
-  EXPECT_NEAR(reading.accel_mps2.z, 9.80665, 1e-4);
-  EXPECT_NEAR(reading.accel_mps2.x, 0.0, 1e-6);
-}
-
-TEST(ImuReadingFromBytes, NegativeCountsReadNegative) {
-  const auto reading = imu_reading_from_bytes(bytes_with(0, 0xE0, 0x00));
-  EXPECT_NEAR(reading.accel_mps2.x, -9.80665, 1e-4);
-}
-
-TEST(ImuReadingFromBytes, GyroReadsInRadiansPerSecond) {
-  // 6550 counts = 100 °/s at ±500 °/s.
-  const auto reading = imu_reading_from_bytes(bytes_with(12, 0x19, 0x96));
-  EXPECT_NEAR(reading.gyro_radps.z, 100.0 * kOneDegreeInRadians, 1e-4);
-}
-
 TEST(ImuReadingFromBytes, EachAxisReadsItsOwnBytes) {
   // Accel 1, 2 and -1 g; temperature; gyro 100, 200 and -100 °/s.
   const ImuBytes bytes = {0x20, 0x00, 0x40, 0x00, 0xE0, 0x00, 0x7F,
@@ -46,6 +29,13 @@ TEST(ImuReadingFromBytes, EachAxisReadsItsOwnBytes) {
   EXPECT_NEAR(reading.gyro_radps.x, 100.0 * kOneDegreeInRadians, 1e-4);
   EXPECT_NEAR(reading.gyro_radps.y, 200.0 * kOneDegreeInRadians, 1e-4);
   EXPECT_NEAR(reading.gyro_radps.z, -100.0 * kOneDegreeInRadians, 1e-4);
+}
+
+TEST(ImuReadingFromBytes, FullScaleReadsFourG) {
+  const auto low = imu_reading_from_bytes(bytes_with(0, 0x80, 0x00));
+  EXPECT_NEAR(low.accel_mps2.x, -4 * 9.80665, 1e-4);
+  const auto high = imu_reading_from_bytes(bytes_with(0, 0x7F, 0xFF));
+  EXPECT_NEAR(high.accel_mps2.x, 32767.0 / 8192.0 * 9.80665, 1e-4);
 }
 
 TEST(ImuReadingFromBytes, TemperatureBytesAreIgnored) {

@@ -6,9 +6,11 @@ project(firmware_tests CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 add_compile_options(-Wall -Wextra -Werror)
-# Trap undefined behaviour, such as a NaN cast to an integer.
-add_compile_options(-fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all)
-add_link_options(-fsanitize=undefined,float-cast-overflow)
+# Trap undefined behaviour (a NaN cast to an integer, a float divided by
+# zero), memory errors and out-of-range std::array or std::span indexing.
+add_compile_options(-fsanitize=address,undefined,float-cast-overflow,float-divide-by-zero
+  -fno-sanitize-recover=all -D_GLIBCXX_ASSERTIONS)
+add_link_options(-fsanitize=address,undefined,float-cast-overflow,float-divide-by-zero)
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../src)
 # The protocol examples shared with the bridge's tests.
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../../ros/pico_bridge/test)
@@ -27,6 +29,7 @@ add_executable(firmware_tests
   pwm_levels_test.cpp
   safety_test.cpp
   speed_controller_test.cpp
+  wheel_test.cpp
   ../src/bench/phase_sequence.cpp
   ../src/devices/imu_reading.cpp
   ../src/devices/pwm_levels.cpp

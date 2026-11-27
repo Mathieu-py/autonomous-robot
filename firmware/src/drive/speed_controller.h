@@ -18,10 +18,17 @@ struct RampedSetpoint {
   float accel_for_next_period;  // rev/s²
 };
 
-// Moves the setpoint toward the target by at most max_accel per second.
+// Moves the setpoint toward the target by at most max_accel_rps2 per second.
 class SetpointRamp {
  public:
-  explicit SetpointRamp(float max_accel) : max_accel_(max_accel) {}
+  explicit SetpointRamp(float max_accel_rps2)
+      : max_accel_rps2_(max_accel_rps2) {}
+
+  // The share of the step to target_rps that one period allows, up to 1.
+  float allowed_share(float target_rps, float period_seconds) const;
+
+  // The point that share of the way from the setpoint to target_rps.
+  float partway_to(float target_rps, float share) const;
 
   RampedSetpoint advance(float target_rps, float period_seconds);
 
@@ -29,7 +36,7 @@ class SetpointRamp {
   void reset() { setpoint_rps_ = previous_setpoint_rps_ = 0.0f; }
 
  private:
-  float max_accel_;
+  float max_accel_rps2_;
   float setpoint_rps_ = 0.0f;
   float previous_setpoint_rps_ = 0.0f;
 };
@@ -44,6 +51,8 @@ class SpeedController {
                               float measured_rps, float period_seconds);
 
   void reset() { integral_ = 0.0f; }
+
+  const MotorGains& gains() const { return gains_; }
 
  private:
   MotorGains gains_;

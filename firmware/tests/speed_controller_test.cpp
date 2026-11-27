@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -40,6 +41,19 @@ TEST(SetpointRamp, LimitsEachStepToMaxAccel) {
   EXPECT_NEAR(first.accel_for_next_period, 5.0f, 1e-4);
 }
 
+TEST(SetpointRamp, AllowsTheShareOfAStepOnePeriodReaches) {
+  const SetpointRamp ramp(5.0f);
+  EXPECT_NEAR(ramp.allowed_share(-1.0f, kPeriod), 0.1f, 1e-6);
+  EXPECT_EQ(ramp.allowed_share(0.05f, kPeriod), 1.0f);
+}
+
+TEST(SetpointRamp, PartwayIsExactAtAFullShare) {
+  SetpointRamp ramp(5.0f);
+  ramp.advance(0.1f, kPeriod);
+  EXPECT_EQ(ramp.partway_to(0.0f, 1.0f), 0.0f);
+  EXPECT_NEAR(ramp.partway_to(0.3f, 0.5f), 0.2f, 1e-6);
+}
+
 TEST(SpeedController, ReachesTargetWithoutOvershoot) {
   SetpointRamp ramp(5.0f);
   SpeedController controller(kGains, 0.95f);
@@ -72,18 +86,22 @@ TEST(SpeedController, BrakesOnceStoppedAtBothMoments) {
 }
 
 TEST(SpeedController, IntegralDoesNotWindUpWhileSaturated) {
-  SpeedController controller(kGains, 0.95f);
-  const RampedSetpoint flat_out = {.at_last_reading = 2.5f,
-                                   .for_next_period = 2.5f,
-                                   .accel_for_next_period = 0.0f};
-  float power = 0.0f;
-  for (int i = 0; i < 100; ++i) {
-    power = controller.power_for_next_period(flat_out, 0.0f, kPeriod);
-  }
-  EXPECT_NEAR(power, 0.95f, 1e-6);
+  for (const float direction : {1.0f, -1.0f}) {
+    SpeedController controller(kGains, 0.95f);
+    const RampedSetpoint flat_out = {.at_last_reading = 2.5f * direction,
+                                     .for_next_period = 2.5f * direction,
+                                     .accel_for_next_period = 0.0f};
+    float power = 0.0f;
+    for (int i = 0; i < 100; ++i) {
+      power = controller.power_for_next_period(flat_out, 0.0f, kPeriod);
+    }
+    EXPECT_NEAR(power, 0.95f * direction, 1e-6);
 
-  // Once at speed, a wound-up integral would hold the output saturated.
-  EXPECT_LT(controller.power_for_next_period(flat_out, 2.5f, kPeriod), 0.95f);
+    // Once at speed, a wound-up integral would hold the output saturated.
+    const float at_speed =
+        controller.power_for_next_period(flat_out, 2.5f * direction, kPeriod);
+    EXPECT_LT(std::fabs(at_speed), 0.95f);
+  }
 }
 
 }  // namespace

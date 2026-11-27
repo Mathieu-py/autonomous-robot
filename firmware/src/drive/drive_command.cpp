@@ -65,7 +65,7 @@ void LatestCommand::record(const DriveCommand& command, int64_t now_ms) {
   last_ms_ = now_ms;
 }
 
-DriveCommand LatestCommand::current(int64_t now_ms) const {
+std::optional<DriveCommand> LatestCommand::fresh(int64_t now_ms) const {
   const bool is_fresh = now_ms - last_ms_ <= timeout_ms_;
-  return is_fresh ? last_ : DriveCommand{0.0f, 0.0f};
+  return is_fresh ? last_ : std::nullopt;
 }

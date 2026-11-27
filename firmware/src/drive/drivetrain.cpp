@@ -1,5 +1,7 @@
 #include "drive/drivetrain.h"
 
+#include <algorithm>
+
 PeriodReport Drivetrain::run_period(const Target& target,
                                     const Readings& readings,
                                     float period_seconds) {
@@ -9,8 +11,8 @@ PeriodReport Drivetrain::run_period(const Target& target,
   const StopReason stop_reason = safety_.update({
       .is_bumper_pressed = readings.is_bumper_pressed,
       .battery_volts = readings.battery_volts,
-      .first = first_.state(),
-      .second = second_.state(),
+      .is_first_stalling = first_.is_stalling(),
+      .is_second_stalling = second_.is_stalling(),
       .is_stop_commanded = target.is_stop(),
       .period_seconds = period_seconds,
   });
@@ -23,8 +25,12 @@ PeriodReport Drivetrain::run_period(const Target& target,
     first_.set_power(target.first);
     second_.set_power(target.second);
   } else {
-    setpoint_rps = first_.follow(target.first, period_seconds);
-    second_.follow(target.second, period_seconds);
+    // One share for both wheels, so an arc keeps its curve while ramping.
+    const float share =
+        std::min(first_.allowed_share(target.first, period_seconds),
+                 second_.allowed_share(target.second, period_seconds));
+    setpoint_rps = first_.follow(target.first, share, period_seconds);
+    second_.follow(target.second, share, period_seconds);
   }
 
   return {

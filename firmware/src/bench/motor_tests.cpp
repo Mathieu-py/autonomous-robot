@@ -38,31 +38,53 @@ constexpr Phase kSysIdPhases[] = {
     {0.0f, 0.0f, 2000},    // 7: rest
 };
 
-// What each motor test runs and logs.
+// What each motor test runs and logs; print_row matches csv_header.
 struct TestSpec {
   std::span<const Phase> phases = {};
   bool is_open_loop_power = false;
   const char* csv_header = "";
+  void (*print_row)(int64_t t_ms, size_t phase,
+                    const PeriodReport& report) = nullptr;
 };
 
 TestSpec spec_for(Mode mode) {
   switch (mode) {
     case Mode::kSpeedTest:
-      return {.phases = kSpeedTestPhases,
-              .is_open_loop_power = false,
-              .csv_header =
-                  "t_ms,setpoint,first_speed,first_power,"
-                  "second_speed,second_power"};
+      return {
+          .phases = kSpeedTestPhases,
+          .is_open_loop_power = false,
+          .csv_header =
+              "t_ms,setpoint,first_speed,first_power,"
+              "second_speed,second_power",
+          .print_row = [](int64_t t_ms, size_t, const PeriodReport& report) {
+            printf("%lld,%.3f,%.3f,%.3f,%.3f,%.3f\n", t_ms, report.setpoint_rps,
+                   report.first.speed_rps, report.first.power,
+                   report.second.speed_rps, report.second.power);
+          }};
     case Mode::kSafetyTest:
-      return {.phases = kSafetyTestPhases,
-              .is_open_loop_power = false,
-              .csv_header =
-                  "t_ms,setpoint,first_speed,first_power,"
-                  "second_speed,second_power,battery_volts,stop"};
+      return {
+          .phases = kSafetyTestPhases,
+          .is_open_loop_power = false,
+          .csv_header =
+              "t_ms,setpoint,first_speed,first_power,"
+              "second_speed,second_power,battery_volts,stop",
+          .print_row = [](int64_t t_ms, size_t, const PeriodReport& report) {
+            printf("%lld,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%s\n", t_ms,
+                   report.setpoint_rps, report.first.speed_rps,
+                   report.first.power, report.second.speed_rps,
+                   report.second.power, report.filtered_battery_volts,
+                   stop_reason_name(report.stop_reason));
+          }};
     case Mode::kSysIdTest:
       return {.phases = kSysIdPhases,
               .is_open_loop_power = true,
-              .csv_header = "t_ms,phase,power,first_speed,second_speed"};
+              .csv_header = "t_ms,phase,power,first_speed,second_speed",
+              .print_row = [](int64_t t_ms, size_t phase,
+                              const PeriodReport& report) {
+                printf("%lld,%u,%.4f,%.3f,%.3f\n", t_ms,
+                       static_cast<unsigned>(phase), report.first.power,
+                       report.first.speed_rps, report.second.speed_rps);
+              }};
     case Mode::kDrive:
     case Mode::kImuTest:
       break;
@@ -78,8 +100,20 @@ MotorTest::MotorTest(Mode mode, absolute_time_t now)
       idle_status_timer_(to_us_since_boot(now), kIdleStatusIntervalMs) {}
 
 void MotorTest::start_countdown(absolute_time_t now) {
+  if (is_stopped_by_input_) {
+    return;
+  }
   start_time_ = delayed_by_ms(now, kTestStartDelayMs);
   announce_test_start(mode_);
+}
+
+void MotorTest::stop_on_input() {
+  if (is_stopped_by_input_) {
+    return;
+  }
+  is_stopped_by_input_ = true;
+  start_time_ = at_the_end_of_time;
+  printf("Test stopped by serial input (is the bridge running?)\n");
 }
 
 Target MotorTest::target(absolute_time_t now) const {
@@ -98,7 +132,7 @@ void MotorTest::log(absolute_time_t now, const PeriodReport& report) {
     if (!was_running_) {
       printf("%s\n", spec_for(mode_).csv_header);
     }
-    print_csv_row(t_ms, report);
+    spec_for(mode_).print_row(t_ms, sequence_.phase(t_ms), report);
   } else if (was_running_) {
     printf("Done\n");
   } else if (idle_status_timer_.tick(to_us_since_boot(now))) {
@@ -130,29 +164,4 @@ void MotorTest::print_idle_status(const PeriodReport& report) const {
       static_cast<long>(report.first.count), report.first.speed_rps,
       static_cast<long>(report.second.count), report.second.speed_rps,
       report.filtered_battery_volts);
-}
-
-void MotorTest::print_csv_row(int64_t t_ms, const PeriodReport& report) const {
-  switch (mode_) {
-    case Mode::kSpeedTest:
-      printf("%lld,%.3f,%.3f,%.3f,%.3f,%.3f\n", t_ms, report.setpoint_rps,
-             report.first.speed_rps, report.first.power,
-             report.second.speed_rps, report.second.power);
-      break;
-    case Mode::kSafetyTest:
-      printf("%lld,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%s\n", t_ms,
-             report.setpoint_rps, report.first.speed_rps, report.first.power,
-             report.second.speed_rps, report.second.power,
-             report.filtered_battery_volts,
-             stop_reason_name(report.stop_reason));
-      break;
-    case Mode::kSysIdTest:
-      printf("%lld,%u,%.4f,%.3f,%.3f\n", t_ms,
-             static_cast<unsigned>(sequence_.phase(t_ms)), report.first.power,
-             report.first.speed_rps, report.second.speed_rps);
-      break;
-    case Mode::kDrive:
-    case Mode::kImuTest:
-      break;
-  }
 }

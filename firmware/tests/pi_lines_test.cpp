@@ -26,4 +26,8 @@ TEST(FormatImuLine, MatchesTheBridgesExample) {
   EXPECT_EQ(std::string_view(format_imu_line(reading).data()), kExampleImuLine);
 }
 
+TEST(ShutdownLine, MatchesTheBridgesExample) {
+  EXPECT_STREQ(kShutdownLine, kExampleShutdownLine);
+}
+
 }  // namespace

@@ -6,6 +6,10 @@ if(NOT DEFINED ENV{PICO_SDK_PATH})
   message(FATAL_ERROR "Set PICO_SDK_PATH to your pico-sdk folder")
 endif()
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+# Built and run on 2.3.1; the stdout timeout and pico2_w rely on recent SDKs.
+if(PICO_SDK_VERSION_STRING VERSION_LESS "2.3.1")
+  message(FATAL_ERROR "Needs pico-sdk 2.3.1 or newer, found ${PICO_SDK_VERSION_STRING}")
+endif()
 
 project(robot_firmware C CXX ASM)
 set(CMAKE_C_STANDARD 11)
@@ -33,7 +37,7 @@ set(FIRMWARE_SOURCES
 )
 add_executable(robot_firmware ${FIRMWARE_SOURCES})
 # Warnings on our sources only: the SDK compiles its own into this target too.
-set_source_files_properties(${FIRMWARE_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra")
+set_source_files_properties(${FIRMWARE_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
 target_include_directories(robot_firmware PRIVATE src)
 
 # Encoder counting program from Raspberry Pi's pico-examples (BSD-3-Clause).
@@ -55,6 +59,8 @@ target_compile_definitions(robot_firmware PRIVATE ROBOT_TICKS_PER_REV=${TICKS_PE
 
 # Drop unread serial output instead of blocking the loop (and the watchdog).
 target_compile_definitions(robot_firmware PRIVATE PICO_STDIO_USB_STDOUT_TIMEOUT_US=0)
+# Room for a period's lines (up to ~160 bytes); what doesn't fit is dropped.
+target_compile_definitions(robot_firmware PRIVATE CFG_TUD_CDC_TX_BUFSIZE=256)
 
 pico_enable_stdio_usb(robot_firmware 1)
 pico_enable_stdio_uart(robot_firmware 0)

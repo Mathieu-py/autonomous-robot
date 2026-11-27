@@ -48,7 +48,7 @@ constexpr float kTicksPerRev = ROBOT_TICKS_PER_REV;
 
 constexpr Wheel::Config wheel_config(const MotorGains& gains) {
   return {.ticks_per_rev = kTicksPerRev,
-          .max_accel = 5.0f,  // 0 to 1.0 rev/s in 0.2 s
+          .max_accel_rps2 = 5.0f,  // 0 to 1.0 rev/s in 0.2 s
           .max_power = Motor::kMaxPower,
           .gains = gains};
 }
@@ -118,10 +118,23 @@ void read_commands(DriveCommandReader& reader, LatestCommand& latest,
   }
 }
 
-Target speed_target(const DriveCommand& command) {
+// Any input, from the bridge or a key in the viewer, stops a bench test.
+void stop_test_on_input(MotorTest& test) {
+  while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
+    test.stop_on_input();
+  }
+}
+
+Target speed_target(const std::optional<DriveCommand>& command) {
+  if (!command) {
+    return {.is_open_loop_power = false,
+            .first = 0.0f,
+            .second = 0.0f,
+            .is_commanded = false};
+  }
   return {.is_open_loop_power = false,
-          .first = command.first_rps,
-          .second = command.second_rps};
+          .first = command->first_rps,
+          .second = command->second_rps};
 }
 
 void print_connection_notes(bool was_rebooted_by_watchdog,
@@ -210,14 +223,16 @@ int main() {
       }
     }
 
-    if (!motor_test) {
+    if (motor_test) {
+      stop_test_on_input(*motor_test);
+    } else {
       read_commands(command_reader, latest_command, now_ms);
     }
 
     if (const auto period_seconds = control_timer.tick(now_us)) {
       const Target target = motor_test
                                 ? motor_test->target(now)
-                                : speed_target(latest_command.current(now_ms));
+                                : speed_target(latest_command.fresh(now_ms));
       const PeriodReport report = drivetrain.run_period(
           target, read_hardware(first_encoder, second_encoder),
           *period_seconds);
@@ -226,7 +241,7 @@ int main() {
 
       // Repeated, so a bridge that connects late still sees it.
       if (report.should_pi_shut_down) {
-        printf("SHUTDOWN: battery critically low\n");
+        printf("%s\n", kShutdownLine);
       }
       if (motor_test) {
         motor_test->log(now, report);

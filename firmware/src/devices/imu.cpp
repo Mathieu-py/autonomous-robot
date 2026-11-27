@@ -6,8 +6,8 @@
 namespace {
 
 constexpr uint8_t kAddress = 0x68;
-constexpr uint kBaudrate = 400'000;
-constexpr uint kTimeoutUs = 2000;  // well inside the 100 ms watchdog
+constexpr uint kI2cClockHz = 400'000;
+constexpr uint kTimeoutUs = 2000;  // two per read still fit the 20 ms period
 
 constexpr uint8_t kSampleRateDivider = 0x19;
 constexpr uint8_t kConfig = 0x1A;
@@ -20,11 +20,27 @@ constexpr uint8_t kWhoAmI = 0x75;
 // Both config registers hold the range setting in bits 3-4.
 constexpr uint8_t range_bits(uint8_t setting) { return setting << 3; }
 
+constexpr int kBusReleaseClocks = 9;  // enough to finish any byte
+constexpr uint kBusReleaseHalfClockUs = 5;
+
+// A reset mid-read can leave the IMU holding SDA low; clocking frees it.
+void release_stuck_bus(uint sda_pin, uint scl_pin) {
+  gpio_init(sda_pin);
+  gpio_init(scl_pin);  // output level 0: switching to output pulls SCL low
+  for (int i = 0; i < kBusReleaseClocks && !gpio_get(sda_pin); ++i) {
+    gpio_set_dir(scl_pin, GPIO_OUT);
+    sleep_us(kBusReleaseHalfClockUs);
+    gpio_set_dir(scl_pin, GPIO_IN);
+    sleep_us(kBusReleaseHalfClockUs);
+  }
+}
+
 }  // namespace
 
 const char* Imu::start(i2c_inst_t* i2c, uint sda_pin, uint scl_pin) {
   i2c_ = i2c;
-  i2c_init(i2c_, kBaudrate);
+  release_stuck_bus(sda_pin, scl_pin);
+  i2c_init(i2c_, kI2cClockHz);
   gpio_set_function(sda_pin, GPIO_FUNC_I2C);
   gpio_set_function(scl_pin, GPIO_FUNC_I2C);
 
@@ -34,7 +50,7 @@ const char* Imu::start(i2c_inst_t* i2c, uint sda_pin, uint scl_pin) {
   }
   sleep_ms(10);
   const bool is_configured =
-      // ~10 Hz filter, under half the 50 Hz read rate: vibration can't alias.
+      // ~10 Hz filter, under half the 50 Hz read rate: little aliasing.
       write_register(kConfig, 0x05) &&
       write_register(kSampleRateDivider, 9) &&  // 100 Hz
       write_register(kGyroConfig, range_bits(kGyroRangeSetting)) &&

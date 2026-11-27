@@ -65,13 +65,17 @@ TEST(DriveCommandReader, LimitingKeepsTheTurn) {
   EXPECT_NEAR(command->second_rps, 1.25f, 1e-6);
 }
 
-TEST(LatestCommand, ZeroesAStaleCommand) {
-  LatestCommand latest(250);
-  EXPECT_NEAR(latest.current(0).first_rps, 0.0f, 1e-6);
+TEST(LatestCommand, HasNoneBeforeTheFirstCommand) {
+  const LatestCommand latest(250);
+  EXPECT_FALSE(latest.fresh(0));
+}
 
+TEST(LatestCommand, DropsAStaleCommand) {
+  LatestCommand latest(250);
   latest.record({0.5f, 0.5f}, 1000);
-  EXPECT_NEAR(latest.current(1250).first_rps, 0.5f, 1e-6);
-  EXPECT_NEAR(latest.current(1251).first_rps, 0.0f, 1e-6);
+  ASSERT_TRUE(latest.fresh(1250));
+  EXPECT_NEAR(latest.fresh(1250)->first_rps, 0.5f, 1e-6);
+  EXPECT_FALSE(latest.fresh(1251));
 }
 
 }  // namespace

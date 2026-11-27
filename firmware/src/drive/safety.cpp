@@ -1,7 +1,5 @@
 #include "drive/safety.h"
 
-#include <cmath>
-
 namespace {
 
 // 3S LiPo, per cell: stop at 3.5 V, Pi off at 3.4 V, re-arm above 3.67 V.
@@ -16,14 +14,7 @@ constexpr float kPiShutdownSeconds = 3.0f;
 // Averages out the dip when the motors start.
 constexpr float kBatteryFilterSeconds = 1.0f;
 
-constexpr float kStallPower = 0.5f;
-constexpr float kStallSpeedRps = 0.05f;
 constexpr float kStallSeconds = 0.5f;
-
-bool is_pushed_but_still(const WheelState& wheel) {
-  return std::fabs(wheel.power) >= kStallPower &&
-         std::fabs(wheel.speed_rps) < kStallSpeedRps;
-}
 
 }  // namespace
 
@@ -47,10 +38,8 @@ StopReason SafetyMonitor::update(const SafetyInputs& inputs) {
   filter_battery(inputs.battery_volts, inputs.period_seconds);
   update_low_battery();
   critically_low_timer_.update(is_critically_low(), inputs.period_seconds);
-  first_stall_timer_.update(is_pushed_but_still(inputs.first),
-                            inputs.period_seconds);
-  second_stall_timer_.update(is_pushed_but_still(inputs.second),
-                             inputs.period_seconds);
+  first_stall_timer_.update(inputs.is_first_stalling, inputs.period_seconds);
+  second_stall_timer_.update(inputs.is_second_stalling, inputs.period_seconds);
 
   const StopReason cause = active_cause(inputs);
   if (cause != StopReason::kNone) {

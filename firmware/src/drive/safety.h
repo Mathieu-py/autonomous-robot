@@ -2,8 +2,6 @@
 
 // Conditions that stop the motors.
 
-#include "drive/wheel_state.h"
-
 enum class StopReason {
   kNone,
   kBumper,
@@ -17,9 +15,9 @@ const char* stop_reason_name(StopReason reason);
 struct SafetyInputs {
   bool is_bumper_pressed;
   float battery_volts;
-  WheelState first;
-  WheelState second;
-  bool is_stop_commanded;  // the command is zero; needed to clear a stop
+  bool is_first_stalling;
+  bool is_second_stalling;
+  bool is_stop_commanded;  // a deliberate zero; needed to clear a stop
   float period_seconds;
 };
 

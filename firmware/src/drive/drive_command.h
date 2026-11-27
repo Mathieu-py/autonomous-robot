@@ -26,16 +26,16 @@ class DriveCommandReader {
   bool is_overflowed_ = false;
 };
 
-// The last command received, dropped to zero when commands stop arriving.
+// The last command received, until commands stop arriving.
 class LatestCommand {
  public:
   explicit LatestCommand(int64_t timeout_ms) : timeout_ms_(timeout_ms) {}
 
   void record(const DriveCommand& command, int64_t now_ms);
-  DriveCommand current(int64_t now_ms) const;  // zero once timed out
+  std::optional<DriveCommand> fresh(int64_t now_ms) const;
 
  private:
   int64_t timeout_ms_;
-  DriveCommand last_ = {0.0f, 0.0f};
+  std::optional<DriveCommand> last_;
   int64_t last_ms_ = 0;
 };

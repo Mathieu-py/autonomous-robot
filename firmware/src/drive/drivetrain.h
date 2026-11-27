@@ -10,8 +10,12 @@ struct Target {
   bool is_open_loop_power;
   float first;
   float second;
+  bool is_commanded = true;  // false for the zero after commands stop
 
-  bool is_stop() const { return first == 0.0f && second == 0.0f; }
+  // Only a received zero clears a stop, not the command timeout.
+  bool is_stop() const {
+    return is_commanded && first == 0.0f && second == 0.0f;
+  }
 };
 
 struct Readings {

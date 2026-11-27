@@ -24,7 +24,7 @@ Nothing: every bench test has passed. The DEN's bench supply is still useful for
 - **Encoders:** they run at 3.3 V, so no 5 V divider is needed. Keep the Pico's internal pull-ups on, as the test script does.
 - **Odometry starting values:** wheel diameter about 68 mm, about 2473 ticks per wheel turn.
 - **IMU calibration:** lying flat, the MPU-6050 read about X 1250, Y 150 and Z 15,470, so calibrate its offsets before using it in the EKF.
-- **Safety thresholds (firmware):** low-battery stop at 10.5 V, Pi shutdown warning at 10.2 V, re-arm above 11.0 V; stall stop at power ≥ 0.5 and speed < 0.05 rev/s for 0.5 s.
+- **Safety thresholds (firmware):** low-battery stop at 10.5 V, Pi shutdown warning at 10.2 V, re-arm above 11.0 V; stall stop when a driven wheel's power is 0.5 or more away from what its speed needs, either way (|power − k_v × speed|, which tracks motor current), for 0.5 s. That catches a held, jammed or backwards-encoder wheel, and one pushed hard against its power. Until 27 November it only caught a wheel turning under 0.05 rev/s.
 - **Stall protection:** the estimated stall current of about 2.4–3.2 A can exceed the MDD3A's 3 A continuous rating, so the firmware must not leave a motor stalled.
 
 ## Batteries
