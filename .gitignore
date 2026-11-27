@@ -14,6 +14,10 @@ compile_commands.json
 # Raw serial logs; results/ keeps the CSVs extracted from them
 *.log
 
+# ROS bags, recorded outside the repo; results/ keeps what's extracted
+rosbag2_*/
+*.mcap
+
 # Editors and OS
 .vscode/
 *.swp

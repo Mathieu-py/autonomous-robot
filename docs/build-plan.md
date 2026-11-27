@@ -13,6 +13,8 @@ One unedited take, with no intervention beyond the final click:
 5. It finishes exploring and returns to its start.
 6. A destination is clicked on the map, and it drives there.
 
+Run it on a private network, a phone hotspot or travel router, never a shared or campus one: ROS 2 has no login, so anyone on the same WiFi could drive the robot.
+
 An unedited take convinces more than a polished edit. Record a short clip at each milestone along the way.
 
 ## Milestones
@@ -84,7 +86,7 @@ Use the existing Dell XPS 14 (32 GB RAM, RTX 4050) under WSL2 with Ubuntu 24.04 
 Treat the first powered runs as tests of the safety features themselves.
 
 - A physical switch that cuts motor power, on the top deck and within reach
-- A firmware watchdog that stops the motors when commands stop
+- A firmware command timeout that stops the motors when commands stop, and a hardware watchdog that reboots a hung Pico with the motors stopped
 - A front bumper of microswitches wired to the Pico, which stops the motors without the Pi; a 2D LiDAR misses obstacles below or above its scan plane
 - A fused battery, with a firmware low-battery cutoff that stops the motors and shuts the Pi down, and a beeping alarm as backup
 - Low speed and supervised runs until the safety stop works

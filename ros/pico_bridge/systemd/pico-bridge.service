@@ -5,6 +5,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# No NoNewPrivileges, Restrict*, ProtectKernel* or SystemCallFilter: sudo powers the Pi off.
 User=msevestre
 Environment=ROS_DOMAIN_ID=17
 # ROS only uses networks up at start: wait up to 30 s for WiFi, then start anyway.

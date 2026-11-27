@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
-<!-- Sizes from cad/dimensions.py and cad/layout.py. base_link is on the floor
+<!-- Wheel size and spacing from config/robot.yaml, as the wheels roll; the
+     rest from cad/dimensions.py and cad/layout.py. base_link is on the floor
      under the middle of the wheel axle: x forward, y left, z up. -->
 <robot name="autonomous_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 

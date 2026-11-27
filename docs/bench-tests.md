@@ -13,7 +13,7 @@ Step-by-step checks for each part, with the results recorded as they are run. Te
 | [4. Spin and stall current](#4-spin-and-stall-current) | Pass, both motors | 2026-11-06 | Stall about 2.4–3.2 A; free spin about 0.15 A, slightly above expected |
 | [5. Odometry constants](#5-odometry-constants) | Pass, both motors | 2026-11-06 | About 68 mm wheels; about 2473 ticks per turn |
 | [6. Bumper and low-battery cutoff](#6-bumper-and-low-battery-cutoff) | Pass | 2026-11-09 | Bumpers and low-battery cutoff stop the motors; stall check also confirmed |
-| [7. MPU-6050](#7-mpu-6050) | Pass | 2026-11-06 | Found at `0x68`; Z about 15,470 flat, needs calibrating |
+| [7. MPU-6050](#7-mpu-6050) | Pass | 2026-11-06 | Found at `0x68`; Z about 15,470 flat |
 
 ## What's left
 
@@ -23,7 +23,7 @@ Nothing: every bench test has passed. The DEN's bench supply is still useful for
 
 - **Encoders:** they run at 3.3 V, so no 5 V divider is needed. Keep the Pico's internal pull-ups on, as the test script does.
 - **Odometry starting values:** wheel diameter about 68 mm, about 2473 ticks per wheel turn.
-- **IMU calibration:** lying flat, the MPU-6050 read about X 1250, Y 150 and Z 15,470, so calibrate its offsets before using it in the EKF.
+- **IMU offsets:** lying flat, the MPU-6050 read about X 1250, Y 150 and Z 15,470. Since milestone 2, `pico_bridge` measures the gyro's offset at start-up and our EKF tracks it; the accelerometer isn't fused, so its offsets aren't calibrated.
 - **Safety thresholds (firmware):** low-battery stop at 10.5 V, Pi shutdown warning at 10.2 V, re-arm above 11.0 V; stall stop when a driven wheel's power is 0.5 or more away from what its speed needs, either way (|power − k_v × speed|, which tracks motor current), for 0.5 s. That catches a held, jammed or backwards-encoder wheel, and one pushed hard against its power. Until 27 November it only caught a wheel turning under 0.05 rev/s.
 - **Stall protection:** the estimated stall current of about 2.4–3.2 A can exceed the MDD3A's 3 A continuous rating, so the firmware must not leave a motor stalled.
 
@@ -99,7 +99,8 @@ Don't charge the packs until they're first needed. Do the first charge inside th
 1. Build the driver once, in an Ubuntu terminal. It sits next to this repo in the workspace, not inside it:
    ```bash
    cd ~/robot_ws/src
-   git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git
+   git clone https://github.com/Slamtec/sllidar_ros2.git
+   git -C sllidar_ros2 checkout 3430009  # the commit the robot runs
    cd ~/robot_ws
    source /opt/ros/jazzy/setup.bash
    colcon build --packages-select sllidar_ros2 --symlink-install
@@ -267,3 +268,4 @@ The wheels are larger than the 65 mm estimate, and the tick count is within 0.4%
 ### Results
 
 - **2026-11-06:** Pass, with the Adafruit board's own pull-ups only. Found at `0x68`. Lying flat, it read about X 1250, Y 150 and Z 15,470, so about 0.94 g on Z. Not yet calibrated.
+- **Firmware check:** a build with `kMode = Mode::kImuTest` reads the chip ID once a serial viewer connects, then prints m/s² and °/s at 10 Hz.

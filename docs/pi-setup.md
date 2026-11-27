@@ -39,20 +39,21 @@ Four ROS packages: `pico_bridge` (the Pico's serial link), `robot_description` (
 ```bash
 mkdir -p ~/robot_ws/src && cd ~/robot_ws/src
 git clone https://github.com/Mathieu-py/autonomous-robot.git
-git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git  # the LiDAR driver, section 9
+git clone https://github.com/Slamtec/sllidar_ros2.git  # the LiDAR driver, section 9
+git -C sllidar_ros2 checkout 3430009  # the commit the robot runs
 cd ~/robot_ws
 sudo rosdep init; rosdep update
 rosdep install --from-paths src --ignore-src -y
 colcon build
-colcon test && colcon test-result --verbose | tail -1
+colcon test-result --delete-yes && colcon test && colcon test-result --verbose | tail -1
 echo "source ~/robot_ws/install/setup.bash" >> ~/.bashrc
 ```
 
 The firmware folder is skipped; it's built on the laptop with the Pico SDK and flashed by copying `firmware/build/robot_firmware.uf2` onto the Pico in BOOTSEL mode.
 
-To update later, run `git pull` in `~/robot_ws/src/autonomous-robot`, then the `rosdep install`, `colcon build` and `colcon test` lines again from `~/robot_ws`, and restart the bridge (`sudo systemctl restart pico-bridge`).
+To update later, run `sudo apt update && sudo apt upgrade` (ROS and its network code come from ROS's own apt source, which Ubuntu's automatic updates skip), then `git pull` in `~/robot_ws/src/autonomous-robot`, then the `rosdep install`, `colcon build` and `colcon test` lines again from `~/robot_ws`, and restart the bridge (`sudo systemctl restart pico-bridge`). Upgrade with time left to re-run the checks in sections 8 and 10, not on a demo day. If the pull changed `firmware/`, also build and test it on the laptop and reflash the Pico (section 7): the firmware and the bridge must speak the same line format.
 
-**Check:** 0 failures. Results from tests that have since been renamed stay in `build/` and are still counted, so the total can run higher than the number of tests.
+**Check:** 0 failures.
 
 ## 3. The Pico's USB link
 
@@ -86,10 +87,12 @@ WSL2's default NAT mode hides it behind a virtual adapter, so ROS discovery can'
    [wsl2]
    networkingMode=mirrored
    ```
-2. In PowerShell as Administrator, allow inbound traffic to WSL ([Microsoft's WSL networking docs](https://learn.microsoft.com/en-us/windows/wsl/networking)):
+2. In PowerShell as Administrator, let ROS 2 traffic for domain 17 into WSL, and nothing else ([Microsoft's WSL networking docs](https://learn.microsoft.com/en-us/windows/wsl/networking)). Domain 17's ports are 11650 to 11899 (7400 + 250 × 17 onwards):
    ```
-   Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
+   Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Block
+   New-NetFirewallHyperVRule -Name ROS2-Domain17 -DisplayName 'ROS 2, domain 17' -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol UDP -LocalPorts 11650-11899
    ```
+   Until 27 November this step was `-DefaultInboundAction Allow`, which opened every service in WSL to every network the laptop joined.
 3. Run `wsl --shutdown` (this also restarts Docker Desktop). WSL then has an address on the home network (`10.0.0.55`, with the Pi at `10.0.0.226`; the router can change both).
 
 On both machines, the same ROS domain keeps the robot's topics apart from any other ROS on the network:
@@ -99,6 +102,8 @@ echo "export ROS_DOMAIN_ID=17" >> ~/.bashrc
 ```
 
 A node started before this keeps the old domain, so restart the bridge in a terminal where `echo $ROS_DOMAIN_ID` prints 17. ROS commands on the laptop run in Ubuntu (WSL), not PowerShell.
+
+The domain only keeps ROS systems apart and secures nothing: ROS 2 has no login, so anyone on the same WiFi can see and drive the robot. Use home WiFi or your own hotspot, never a shared or campus network.
 
 **Check:** a `ros2 topic pub` on either machine reaches a `ros2 topic echo /chatter std_msgs/msg/String` on the other; the laptop sees `/joint_states` at 50 Hz. Measured: 50.0 Hz, with a few milliseconds of WiFi jitter.
 
@@ -171,7 +176,7 @@ sudo systemctl start pico-bridge
 
 ## 8. Frames, wheel odometry and the EKF
 
-`robot_state_publisher` publishes the URDF's frames (`base_link` on the floor under the axle, the wheels, the caster and `imu_link`), and `wheel_odometry` turns `/joint_states` into `/odom`. Two EKFs combine `/odom`'s speed and turn rate with the gyro's turn rate, side by side for comparison: robot_localization's (`config/robot_localization.yaml`) into `/odometry/filtered`, and ours (`robot_ekf`) into `/ekf/odom`. Ours also estimates the gyro's zero offset, published on `/ekf/gyro_bias`, and turns by the gyro alone while the wheels slip; it logs `Wheels slipping` when that happens. If both sensors stop for over a second, usually the bridge restarting, it keeps the pose but learns the speed, turn rate and gyro offset afresh, since the bridge re-measures the offset when it starts. It sorts the two sensors' readings by time first, so `/ekf/odom` runs about 30 ms behind `/odom`. Ours was the more accurate in the square tests, so it also publishes the `odom → base_link` transform: the robot's pose for RViz, `tools/odom_drive.py` and, later, Nav2. `wheel_odometry` doesn't publish one, and `config/robot_localization.yaml` turns robot_localization's off. The `rosdep install` line in section 2 installs robot_localization and Eigen. With the bridge running, in its own terminal on the Pi:
+`robot_state_publisher` publishes the URDF's frames (`base_link` on the floor under the axle, the wheels, the caster and `imu_link`), and `wheel_odometry` turns `/joint_states` into `/odom`. Two EKFs combine `/odom`'s speed and turn rate with the gyro's turn rate, side by side for comparison: robot_localization's (`config/robot_localization.yaml`) into `/odometry/filtered`, and ours (`robot_ekf`) into `/ekf/odom`. Ours also estimates the gyro's zero offset, published on `/ekf/gyro_bias`, and turns by the gyro alone while the wheels slip; it logs `Wheels slipping` when that happens. If both sensors stop for over a second, usually the bridge restarting, it keeps the pose but learns the speed, turn rate and gyro offset afresh, since the bridge re-measures the offset when it starts. It sorts the two sensors' readings by time first, so `/ekf/odom` runs about 40 ms behind `/odom`. Ours was the more accurate in the square tests, so it also publishes the `odom → base_link` transform: the robot's pose for RViz, `tools/odom_drive.py` and, later, Nav2. `wheel_odometry` doesn't publish one, and `config/robot_localization.yaml` turns robot_localization's off. The `rosdep install` line in section 2 installs robot_localization and Eigen. With the bridge running, in its own terminal on the Pi:
 
 ```bash
 ros2 launch robot_description robot.launch.py
@@ -179,17 +184,19 @@ ros2 launch robot_description robot.launch.py
 
 It logs `Wheel diameter 0.0670 m, separation 0.1704 m`, and `ros2 topic hz /odometry/filtered` and `ros2 topic hz /ekf/odom` each show about 50 Hz. On the laptop, `rviz2` with Fixed Frame `odom`, a **TF** display and a **RobotModel** display reading `/robot_description` shows the robot moving as it drives. Read the pose with `ros2 run tf2_ros tf2_echo odom base_link`.
 
-**Check:** with the robot on the floor, run `python3 tools/odom_drive.py straight 1.0` or `spin 720` on the Pi, in another SSH terminal from `~/robot_ws/src/autonomous-robot`. Over WiFi from the laptop the pose arrives late, so the robot stops later and less consistently. It drives that far by the robot's pose (`odom → base_link`), stops, and prints where the robot ended by that pose and by `/odom` alone: compare `/odom`'s line with a tape measure to check the wheel calibration. Each move aims short by how far the robot carries on after deciding to stop (14 mm, 3.0°), so it stops close to the target. After the floor calibration on 25 November 2026, 1 m read 0.2% long and two full turns within 0.2% either way ([results](../results/README.md#odometry-calibration-odometry)).
+**Check:** with the robot on the floor, run `python3 tools/odom_drive.py straight 1.0` or `spin 720` on the Pi, in another SSH terminal from `~/robot_ws/src/autonomous-robot`. Over WiFi from the laptop the pose arrives late, so the robot stops later and less consistently, and `odom_drive.py` stops early if no new pose arrives for 0.3 s. It drives that far by the robot's pose (`odom → base_link`), stops, and prints where the robot ended by that pose and by `/odom` alone: compare `/odom`'s line with a tape measure to check the wheel calibration. Each move aims short by how far the robot carries on after deciding to stop (14 mm, 3.0°), so it stops close to the target. After the floor calibration on 25 November 2026, 1 m read 0.2% long and two full turns within 0.2% either way ([results](../results/README.md#odometry-calibration-odometry)).
 
-**Replaying a recording** through the same nodes, on the laptop, needs a recording with `/joint_states` and `/imu/data_raw`. In one terminal:
+**Replaying a recording** through the same nodes, on the laptop, needs a recording with `/joint_states` and `/imu/data_raw`. Use a domain of its own in every terminal involved, RViz included, so the replay never mixes with a robot that's switched on. In one terminal:
 
 ```bash
+export ROS_DOMAIN_ID=18
 ros2 launch robot_description robot.launch.py use_sim_time:=true lidar:=false
 ```
 
 and in another:
 
 ```bash
+export ROS_DOMAIN_ID=18
 ros2 bag play <bag dir> --clock --topics /joint_states /imu/data_raw
 ```
 
@@ -197,7 +204,7 @@ ros2 bag play <bag dir> --clock --topics /joint_states /imu/data_raw
 
 ## 9. The LiDAR
 
-The RPLIDAR C1 plugs into one of the Pi's USB ports through its adapter board, and Slamtec's `sllidar_ros2` driver publishes `/scan`. `robot.launch.py` starts it with the rest; `lidar:=false` leaves it out. Its 800 mA start-up draw needs section 1's `usb_max_current_enable=1`.
+The RPLIDAR C1 plugs into one of the Pi's USB ports through its adapter board, and Slamtec's `sllidar_ros2` driver publishes `/scan`. `robot.launch.py` starts it with the rest; `lidar:=false` leaves it out. Its 800 mA start-up draw needs `usb_max_current_enable=1` from [bench test 1](bench-tests.md#1-pi-power).
 
 Name it `/dev/lidar`, as the Pico is `/dev/pico`. `10c4:ea60` is the adapter's CP2102N USB serial chip:
 
@@ -207,14 +214,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 sudo udevadm settle; ls -l /dev/lidar
 ```
 
-The driver isn't in Jazzy's packages, so section 2 clones it next to this repo and builds it with the rest, as in the [bench test](bench-tests.md#2-lidar). On a Pi set up before 27 November:
-
-```bash
-cd ~/robot_ws/src
-git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git
-cd ~/robot_ws
-colcon build --packages-select sllidar_ros2
-```
+The driver isn't in Jazzy's packages, so section 2 clones it next to this repo, at a fixed commit, and builds it with the rest, as in the [bench test](bench-tests.md#2-lidar). On a Pi set up before 27 November, run section 2's two driver lines in `~/robot_ws/src`, then `colcon build --packages-select sllidar_ros2` from `~/robot_ws`. On a Pi that already has the driver, pin it with `git -C ~/robot_ws/src/sllidar_ros2 checkout 3430009`.
 
 The URDF's `laser` frame is on the laser plane, 151.8 mm up, at the LiDAR's centre from [cad/layout.py](../cad/layout.py) (45 mm behind the axle, 10 mm right of centre), turned 180°: the driver's x points at the LiDAR's cable, which faces the rear.
 

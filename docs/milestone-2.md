@@ -1,6 +1,6 @@
 # Milestone 2: Know where it is
 
-Finished on 26 November 2026, on the floor and on the battery. The robot tracks where it is from its wheels and gyro with its own EKF. After a 1 m square, our EKF's estimate is within 0.2° and 8 mm of where the robot really stopped, against robot_localization's 1.0° and 25 mm.
+Finished on 26 November 2026, on the floor and on the battery. The robot tracks where it is from its wheels and gyro with its own EKF. After a 1 m square, our EKF's estimate is within 0.2–0.4° and 8 mm of where the robot really stopped, against robot_localization's 0.8–1.0° and 16–25 mm (runs 04 and 05).
 
 **Done when** ([build plan](build-plan.md)): drift measured after driving a square, and your EKF compared with robot_localization.
 
@@ -34,7 +34,7 @@ Four square sessions got there, one change at a time ([square tests](../results/
 - It estimates position, heading, speed, turn rate and the gyro's zero offset, which can reach a few degrees a minute and drifts.
 - It learns the offset only while the robot isn't turning. At each start and stop of a turn, the body turns further than the wheels count, and an EKF free to explain that as offset follows the wheels instead (run 01).
 - It ignores the wheels' turn rate while they slip, when they disagree with the gyro for 8 readings in a row. Starting and stopping disagree for up to 5.
-- The node sorts the two sensors' readings by time (30 ms behind), restarts if time jumps back, and publishes `/ekf/odom`, `/ekf/gyro_bias` and the `odom → base_link` transform, the pose Nav2 will steer by. Only one node may publish that transform ([REP 105](https://www.ros.org/reps/rep-0105.html)), so `wheel_odometry` doesn't publish it and `robot_localization.yaml` turns robot_localization's off.
+- The node sorts the two sensors' readings by time (about 40 ms behind), restarts if time jumps back, and publishes `/ekf/odom`, `/ekf/gyro_bias` and the `odom → base_link` transform, the pose Nav2 will steer by. Only one node may publish that transform ([REP 105](https://www.ros.org/reps/rep-0105.html)), so `wheel_odometry` doesn't publish it and `robot_localization.yaml` turns robot_localization's off.
 - 19 unit tests: the EKF on straight runs, turns, slips, offsets and time gaps, and the reading sorter.
 
 **A test driver that drives like Nav2** ([tools/odom_drive.py](../tools/odom_drive.py)): drives a set distance, angle or square by the `odom → base_link` transform, as Nav2's Spin and DriveOnHeading behaviours do. It ramps its speed with Nav2's velocity smoother defaults (2.5 m/s², 3.2 rad/s²) and slows so it could stop in what remains. Each move stops short by how far the robot carries on, 14 mm and 3.0°, as ROS By Example's `angular_tolerance` does. It runs on the Pi.

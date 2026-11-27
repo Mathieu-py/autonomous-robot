@@ -95,7 +95,7 @@ The MPU-6050 published by `pico_bridge` on `/imu/data_raw` at 50 Hz (±4 g, ±50
 
 ## Odometry calibration ([odometry/](odometry/))
 
-`tools/odom_drive.py` drives a set distance or angle by `/odom`, stops, and prints where `/odom` thinks the robot ended; each run was then measured on the floor. Straight runs went 1 m along a strip of masking tape, measured at a flag on the deck's front centre (and one on its rear centre, from run 2). Spins were two full turns on the spot; the flag's straight-line distance d from its starting tick gives the extra angle, 2·asin(d / 2R) with R = 120 mm, the deck's radius. Every run: on the battery (11.35 V), on a hard floor, bumper arc not fitted yet. Each run and its reading: [2026-11-25-floor-calibration.csv](odometry/2026-11-25-floor-calibration.csv).
+`tools/odom_drive.py` drove a set distance or angle by `/odom`, stopped, and printed where `/odom` thought the robot ended; each run was then measured on the floor. (It now steers by our EKF's `odom → base_link` and prints `/odom` alongside.) Straight runs went 1 m along a strip of masking tape, measured at a flag on the deck's front centre (and one on its rear centre, from run 2). Spins were two full turns on the spot; the flag's straight-line distance d from its starting tick gives the extra angle, 2·asin(d / 2R) with R = 120 mm, the deck's radius. Every run: on the battery (11.35 V), on a hard floor, bumper arc not fitted yet. Each run and its reading: [2026-11-25-floor-calibration.csv](odometry/2026-11-25-floor-calibration.csv).
 
 | Wheels in robot.yaml | Straight 1 m: measured ÷ `/odom` | Two turns: measured ÷ `/odom` |
 | --- | --- | --- |

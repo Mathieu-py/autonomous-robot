@@ -7,7 +7,7 @@ Usage (ROS 2 sourced): python3 tools/end_pose_errors.py <bag dir> <floor csv>
 Each drive is one odom_drive.py run: its /cmd_vel messages, with gaps of
 under 5 s. The floor CSV names each measured drive by its index in the
 recording, counting from 0, with the odom_drive command and how far each deck
-flag ended from its start mark (results/README.md#square-tests).
+flag ended from its start mark (results/README.md#square-tests-squares).
 """
 import csv
 import math
