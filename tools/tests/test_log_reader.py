@@ -1,6 +1,6 @@
 import pytest
 
-from chart_style import read_log_rows
+from log_reader import read_log_rows
 
 
 def test_reads_csv_rows_from_a_putty_log(tmp_path):

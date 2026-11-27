@@ -1,12 +1,14 @@
-"""Reads ROS 2 bags for the tools; needs ROS 2 sourced."""
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from rosidl_runtime_py.utilities import get_message
+"""Reads ROS 2 bags for the tools; bag_messages() needs ROS 2 sourced."""
 
 
 def bag_messages(bag_path, topics=None):
     """Yields (topic, message) in the order they were written, not by timestamp:
     WSL's clock steps backwards, so laptop timestamps can go out of order."""
+    # Here, so the tools' tests run without ROS sourced.
+    import rosbag2_py
+    from rclpy.serialization import deserialize_message
+    from rosidl_runtime_py.utilities import get_message
+
     reader = rosbag2_py.SequentialReader()
     reader.open(rosbag2_py.StorageOptions(uri=bag_path, storage_id="mcap"),
                 rosbag2_py.ConverterOptions("cdr", "cdr"))
@@ -18,3 +20,8 @@ def bag_messages(bag_path, topics=None):
     while reader.has_next():
         topic, data, _ = reader.read_next()
         yield topic, deserialize_message(data, get_message(types[topic]))
+
+
+def header_stamp_s(msg):
+    """A message's header stamp in seconds."""
+    return msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9

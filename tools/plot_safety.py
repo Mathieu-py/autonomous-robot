@@ -4,27 +4,15 @@ each stop shaded and labelled.
 Usage: python3 tools/plot_safety.py <input.csv> <output.png> "<title>"
 """
 import sys
-from itertools import groupby
 
 import matplotlib.pyplot as plt
 
 from chart_style import (BLUE, INK, INK_2, ORANGE, STOP_FILL, label_events,
-                         plot_target, read_log_rows)
+                         plot_target)
+from log_reader import read_log_rows
+from runs import spans
 
 LOW_BATTERY_VOLTS = 10.5  # the firmware's kLowBatteryVolts
-
-
-def stop_spans(t, stops):
-    """(start, end, reason) for each run of one stop reason; it ends at the
-    next reading, or the last one."""
-    spans = []
-    start = 0
-    for reason, run in groupby(stops):
-        end = start + len(list(run))
-        if reason != "none":
-            spans.append((t[start], t[min(end, len(t) - 1)], reason))
-        start = end
-    return spans
 
 
 def main():
@@ -41,11 +29,13 @@ def main():
         3, 1, figsize=(11, 8), sharex=True,
         gridspec_kw={"height_ratios": [3, 2, 2], "hspace": 0.12})
 
-    spans = stop_spans(t, stops)
+    stop_spans = [(start, end, reason)
+                  for start, end, reason in spans(t, stops) if reason != "none"]
     for ax in (ax_speed, ax_power, ax_battery):
-        for begin, end, _ in spans:
+        for begin, end, _ in stop_spans:
             ax.axvspan(begin, end, color=STOP_FILL, linewidth=0, zorder=0)
-    label_events(ax_speed, [(begin, reason) for begin, _, reason in spans],
+    label_events(ax_speed,
+                 [(begin, reason) for begin, _, reason in stop_spans],
                  fontsize=8)
 
     plot_target(ax_speed, t, setpoint, "Setpoint")
@@ -72,7 +62,8 @@ def main():
     ax_battery.set_xlabel("Time since test start (s); shaded = motors stopped")
 
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    print(f"{len(rows)} samples, {len(spans)} stops, plotted to {out_path}")
+    print(f"{len(rows)} samples, {len(stop_spans)} stops, plotted to "
+          f"{out_path}")
 
 
 if __name__ == "__main__":

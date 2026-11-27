@@ -3,10 +3,11 @@ speeds, battery voltage, and the bridge node's log messages.
 
 Usage (with ROS 2 sourced):
   python3 tools/plot_teleop.py <bag dir> <output.csv> <output.png> "<title>"
-      [wheel separation in m]
+      [<wheel diameter m> <wheel separation m>]
 
 The drive geometry comes from ros/robot_description/config/robot.yaml. Runs
-01-04 (2026-11-09) were driven with a 0.20 m separation: pass 0.20 for those.
+01-04 (2026-11-09) were driven with 0.068 m wheels 0.20 m apart: pass
+0.068 0.20 for those.
 
 Times messages by counting /joint_states (every 20 ms), not by timestamp: WSL's
 clock steps back about a second every 30 s.
@@ -101,13 +102,17 @@ def plot(png_path, title, rows, logs):
 
 
 def main():
-    if len(sys.argv) not in (5, 6):
+    if len(sys.argv) not in (5, 7):
         sys.exit(__doc__)
     bag_path, csv_path, png_path, title = sys.argv[1:5]
-    drive = yaml.safe_load(ROBOT_YAML.read_text())["/**"]["ros__parameters"]
-    wheel_separation_m = (float(sys.argv[5]) if len(sys.argv) == 6
-                          else drive["wheel_separation_m"])
-    metres_per_rev = math.pi * drive["wheel_diameter_m"]
+    if len(sys.argv) == 7:
+        wheel_diameter_m, wheel_separation_m = map(float, sys.argv[5:7])
+    else:
+        robot_yaml = yaml.safe_load(ROBOT_YAML.read_text())
+        drive = robot_yaml["/**"]["ros__parameters"]
+        wheel_diameter_m = drive["wheel_diameter_m"]
+        wheel_separation_m = drive["wheel_separation_m"]
+    metres_per_rev = math.pi * wheel_diameter_m
 
     rows, logs = read_bag(bag_path, wheel_separation_m, metres_per_rev)
     write_csv(csv_path, rows)

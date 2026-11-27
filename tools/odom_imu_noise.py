@@ -12,35 +12,28 @@ import sys
 
 import numpy as np
 
-from bag_reader import bag_messages
+from bag_reader import bag_messages, header_stamp_s
+from odom_drive import yaw_from_quaternion
+from runs import on_spans
 
 MOVING_MPS = 0.05
 TURNING_RADPS = 0.25
 STILL_S = 30.0  # untouched at the start of the recording
-SETTLE_S = 1.0  # speeding up at the start of each run
+SPEEDING_UP_S = 1.0  # at the start of each run
 STOPPING_S = 0.5  # slowing down at the end of each run
-MIN_RUN_S = 3.0
+MIN_RUN_S = 5.0  # longer than a square's 90 deg turn, about 3 s
 COAST_S = 2.0  # after a spin, still turning a little
 
 
-def stretches(t, is_on):
-    """(start, end) times of each unbroken run of True in is_on."""
-    result = []
-    start = None
-    for time, on in zip(t, is_on):
-        if on and start is None:
-            start = time
-        elif not on and start is not None:
-            result.append((start, time))
-            start = None
-    if start is not None:
-        result.append((start, t[-1]))
-    return result
+def long_runs(t, is_on):
+    """(start, end) of each run of True longer than MIN_RUN_S."""
+    return [(start, end) for start, end in on_spans(t, is_on)
+            if end - start > MIN_RUN_S]
 
 
 def about_run_means(t, values, runs):
     """Each run's steady values, about that run's mean."""
-    parts = [values[(t > start + SETTLE_S) & (t < end - STOPPING_S)]
+    parts = [values[(t > start + SPEEDING_UP_S) & (t < end - STOPPING_S)]
              for start, end in runs]
     return np.concatenate([part - part.mean() for part in parts])
 
@@ -48,11 +41,12 @@ def about_run_means(t, values, runs):
 def load(bag_path):
     odom, imu = [], []
     for topic, msg in bag_messages(bag_path, ["/odom", "/imu/data_raw"]):
-        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        stamp = header_stamp_s(msg)
         if topic == "/odom":
             q = msg.pose.pose.orientation
             odom.append((stamp, msg.twist.twist.linear.x,
-                         msg.twist.twist.angular.z, 2 * np.arctan2(q.z, q.w)))
+                         msg.twist.twist.angular.z,
+                         yaw_from_quaternion(q.z, q.w)))
         else:
             imu.append((stamp, msg.angular_velocity.z))
     if not odom or not imu:
@@ -77,9 +71,8 @@ def main():
 
     is_straight = np.abs(speed_mps) > MOVING_MPS
     is_spin = np.abs(turn_radps) > TURNING_RADPS
-    straights = [r for r in stretches(t, is_straight)
-                 if r[1] - r[0] > MIN_RUN_S]
-    spins = [r for r in stretches(t, is_spin) if r[1] - r[0] > MIN_RUN_S]
+    straights = long_runs(t, is_straight)
+    spins = long_runs(t, is_spin)
     is_still = imu_t < STILL_S
 
     print(f"Still for {STILL_S:.0f} s, {len(straights)} straight runs, "
@@ -87,6 +80,9 @@ def main():
     print("Still:")
     report("gyro z", gyro_z[is_still], "rad/s")
     for name, runs in (("Straight runs", straights), ("Spins", spins)):
+        if not runs:
+            print(f"{name}: none")
+            continue
         print(f"{name}:")
         report("odom speed", about_run_means(t, speed_mps, runs), "m/s")
         report("odom turn rate", about_run_means(t, turn_radps, runs),
@@ -95,10 +91,11 @@ def main():
         report("odom turn - gyro z",
                about_run_means(t, turn_radps - gyro_at_odom, runs), "rad/s")
 
-    print("Spin angles, gyro against /odom:")
+    if spins:
+        print("Spin angles, gyro against /odom:")
     for start, end in spins:
-        window = (t > start - SETTLE_S) & (t < end + COAST_S)
-        imu_window = (imu_t > start - SETTLE_S) & (imu_t < end + COAST_S)
+        window = (t > start - SPEEDING_UP_S) & (t < end + COAST_S)
+        imu_window = (imu_t > start - SPEEDING_UP_S) & (imu_t < end + COAST_S)
         odom_deg = np.degrees(yaw_rad[window][-1] - yaw_rad[window][0])
         gyro_deg = np.degrees(np.trapz(gyro_z[imu_window],
                                        imu_t[imu_window]))

@@ -1,0 +1,53 @@
+# Every test suite, on each push and pull request (README.md, "Tests").
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    name: Firmware logic and Python tools
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libgtest-dev python3-matplotlib \
+            python3-numpy python3-pytest python3-yaml
+      - name: Firmware tests
+        run: |
+          cmake -S firmware/tests -B firmware/tests/build
+          cmake --build firmware/tests/build -j
+          ctest --test-dir firmware/tests/build --output-on-failure
+      - name: Python tool tests
+        run: python3 -m pytest tools/tests -q
+
+  ros:
+    name: ROS packages
+    runs-on: ubuntu-24.04
+    container: ros:jazzy-ros-base
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: src/autonomous-robot
+      - name: Install dependencies
+        run: |
+          apt-get update
+          rosdep update
+          rosdep install -y --ignore-src --skip-keys robot_description \
+            --from-paths src/autonomous-robot/ros/pico_bridge \
+            src/autonomous-robot/ros/wheel_odometry \
+            src/autonomous-robot/ros/robot_ekf
+      - name: Build and test
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build --packages-select pico_bridge wheel_odometry robot_ekf
+          colcon test --packages-select pico_bridge wheel_odometry robot_ekf
+          colcon test-result --verbose

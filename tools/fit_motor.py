@@ -8,13 +8,15 @@ Model, as in WPILib SysId: power = kS * sign(v) + kV * v + kA * a. kS and kV
 come from the slow ramps, kA from the steps' time constant; PI gains from IMC
 (lambda) tuning of that first-order-plus-dead-time model.
 """
+import pathlib
 import sys
 from collections import namedtuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from chart_style import BLUE, INK, read_log_rows
+from chart_style import BLUE, INK
+from log_reader import read_log_rows
 
 # The identification log's columns.
 T_MS_COL, PHASE_COL, POWER_COL, FIRST_SPEED_COL, SECOND_SPEED_COL = range(5)
@@ -73,6 +75,11 @@ def fit_model(data, speed_col):
                     ramp_power, steps)
 
 
+def imc_pi_gains(k_v, k_a, delay_s, lambda_s):
+    """(kP, kI) for a first-order-plus-dead-time motor, by IMC tuning."""
+    return k_a / (lambda_s + delay_s), k_v / (lambda_s + delay_s)
+
+
 def describe_fit(name, fit, control_period_s):
     """The fit and the PI gains it suggests, as report lines."""
     # The controller also waits on average half a period before acting.
@@ -96,8 +103,8 @@ def describe_fit(name, fit, control_period_s):
     for label, lam in (("tight, lambda = delay", delay),
                        ("moderate, lambda = 2 x delay", 2 * delay),
                        ("gentle, lambda = 4 x delay", 4 * delay)):
-        lines.append(f"    {label:30s} kP = {fit.k_a / (lam + delay):.3f}, "
-                     f"kI = {fit.k_v / (lam + delay):.2f}")
+        k_p, k_i = imc_pi_gains(fit.k_v, fit.k_a, delay, lam)
+        lines.append(f"    {label:30s} kP = {k_p:.3f}, kI = {k_i:.2f}")
     return lines
 
 
@@ -150,7 +157,7 @@ def main():
     fig.savefig(chart_path, dpi=130)
 
     print("\n".join(report))
-    summary_path = chart_path.rsplit(".", 1)[0] + ".txt"
+    summary_path = pathlib.Path(chart_path).with_suffix(".txt")
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write(f"Fit of {log_path}\n" + "\n".join(report) + "\n")
     print(f"\nChart saved to {chart_path}, numbers to {summary_path}")

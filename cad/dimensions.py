@@ -11,7 +11,8 @@ MOTOR_LENGTH = 56.75                 # gearbox front face to the encoder's back
 GEARBOX_FACE_TO_WHEEL = 16.7         # gearbox front face to the wheel's inner face
 GEARBOX_LENGTH = 24.0
 SHAFT_OFFSET = 6.9                   # gearbox centre above the shaft
-GEARBOX_HOLE_CIRCLE = 31.0           # 6 x M3, 4 mm deep (listings)
+GEARBOX_HOLE_CIRCLE = 31.0           # 6 x M3 (listings)
+GEARBOX_HOLE_DEPTH = 4.0             # listings
 
 # --- Wheel, measured ---
 WHEEL_DIAMETER = 68.0
@@ -136,7 +137,6 @@ M3_SCREW_LENGTH = 6.15               # under the head; 7.8 overall
 M3_HEAD_CLEARANCE = 6.5              # counterbore diameter
 M3_NUT_ACROSS_FLATS = 5.8            # pocket, with clearance for a 5.5 nut
 M3_NUT_THICKNESS = 2.4
-GEARBOX_HOLE_DEPTH = 4.0             # listings
 
 # --- Nylon standoffs (male-female: body + 6 mm thread), from the kit ---
 STANDOFF_LENGTHS = (6.0, 8.0, 10.0, 12.0, 15.0, 20.0)  # M2.5 and M3; they stack

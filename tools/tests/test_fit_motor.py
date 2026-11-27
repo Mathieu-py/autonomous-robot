@@ -1,9 +1,15 @@
+import pathlib
+
 import numpy as np
 import pytest
 
 from fit_motor import (COLUMN_COUNT, FIRST_SPEED_COL, PHASE_COL, POWER_COL,
-                       RAMP_PHASES, STEP_PHASES, T_MS_COL, fit_ramps, fit_step,
-                       step_model)
+                       RAMP_PHASES, STEP_PHASES, T_MS_COL, fit_model,
+                       fit_ramps, fit_step, imc_pi_gains, step_model)
+from log_reader import read_log_rows
+
+SYSID_RUN = (pathlib.Path(__file__).resolve().parents[2] / "results/sysid"
+             / "2026-11-09-run01-no-load-both-motors.csv")
 
 K_S = 0.012
 K_V = 0.345
@@ -57,3 +63,17 @@ def test_step_gives_back_its_time_constant_and_dead_time():
     assert fit.theta == pytest.approx(0.011, abs=0.002)
     assert fit.v_ss == pytest.approx(1.4)
     assert fit.power == 0.5
+
+
+def test_imc_gives_the_firmwares_moderate_gains():
+    # Run 01's first motor: 21 ms loop delay, lambda twice that.
+    k_p, k_i = imc_pi_gains(k_v=0.345, k_a=0.0174, delay_s=0.021,
+                            lambda_s=0.042)
+    assert (k_p, k_i) == pytest.approx((0.277, 5.48), rel=0.01)
+
+
+def test_fits_the_committed_identification_run():
+    data = np.array(read_log_rows(SYSID_RUN, COLUMN_COUNT))
+    fit = fit_model(data, FIRST_SPEED_COL)
+    assert (fit.k_s, fit.k_v, fit.k_a) == pytest.approx(
+        (0.0119, 0.3451, 0.0174), abs=1e-4)

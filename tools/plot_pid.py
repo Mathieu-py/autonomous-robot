@@ -6,7 +6,8 @@ import sys
 
 import matplotlib.pyplot as plt
 
-from chart_style import BLUE, INK_2, ORANGE, plot_target, read_log_rows
+from chart_style import BLUE, INK_2, ORANGE, plot_target
+from log_reader import read_log_rows
 
 
 def main():

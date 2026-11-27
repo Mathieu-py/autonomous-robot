@@ -2,18 +2,22 @@
 
 Origin at the deck centre on the wheel axis, z = 0 on the floor, +x forward,
 +y left. Parts are (centre x, centre y, size x, size y). Heavy parts sit
-behind the axle so braking can't tip it forward (CoM 16 mm behind, 54 mm up).
+behind the axle so braking can't tip it forward.
+
+The parts are built by a local cad/model.py (cadquery); the committed STLs are
+the record. The URDF copies the deck, caster, IMU and LiDAR positions, in
+metres: change both.
 """
 from dimensions import (BATTERY_LENGTH, BATTERY_WIDTH, CASTER_FLANGE_LENGTH,
                         CASTER_FLANGE_WIDTH, CASTER_HEIGHT, CONVERTER_LENGTH,
                         CONVERTER_TAB_LENGTH, CONVERTER_WIDTH,
-                        GEARBOX_FACE_TO_WHEEL, GEARBOX_HOLE_CIRCLE,
-                        GEARBOX_HOLE_DEPTH, GEARBOX_LENGTH, IMU_LENGTH,
+                        GEARBOX_FACE_TO_WHEEL, GEARBOX_HOLE_DEPTH,
+                        GEARBOX_LENGTH, IMU_LENGTH,
                         IMU_WIDTH, LIDAR_ADAPTER_HOLE_INSET,
                         LIDAR_ADAPTER_LENGTH, LIDAR_ADAPTER_SOCKET_HOLE,
                         LIDAR_ADAPTER_SOCKET_PLUG,
-                        LIDAR_ADAPTER_USB_HOLE, LIDAR_ADAPTER_USB_PLUG,
-                        LIDAR_ADAPTER_WIDTH, LIDAR_HOLE_SPACING,
+                        LIDAR_ADAPTER_USB_HOLE, LIDAR_ADAPTER_WIDTH,
+                        LIDAR_HOLE_SPACING,
                         M3_SCREW_LENGTH, MDD3A_LENGTH, MDD3A_WIDTH,
                         MICROSWITCH_HOLES_TO_ROLLER_SIDE, MICROSWITCH_WIDTH,
                         MOTOR_LENGTH, PERFBOARD_HOLES_LENGTH,
@@ -98,12 +102,16 @@ CABLE_SLOTS = [(19.0, 0.0, 10.0, 40.0), (-55.0, 43.0, 30.0, 10.0)]
 # The LiDAR plate's pillars were printed around this point; the LiDAR sits on it.
 LIDAR_X = -45.0                      # mount with its cable side to the rear
 LIDAR_Y = -10.0
-LIDAR_PLATE_PILLARS = [(LIDAR_X + dx, LIDAR_Y + dy) for dx in (-32.0, 32.0) for dy in (32.0, -32.0)]
+LIDAR_PILLAR_OFFSET = 32.0           # each plate pillar from the LiDAR centre, in x and y
+LIDAR_PLATE_PILLARS = [(LIDAR_X + dx, LIDAR_Y + dy)
+                       for dx in (-LIDAR_PILLAR_OFFSET, LIDAR_PILLAR_OFFSET)
+                       for dy in (LIDAR_PILLAR_OFFSET, -LIDAR_PILLAR_OFFSET)]
 
 # Turned on 26 Nov (holes drilled by hand): between the front and rear
-# pillars, its right end 48 mm past the right ones.
+# pillars, its right end past the right ones.
+PI_PAST_RIGHT_PILLARS = 48.0
 PI_X = LIDAR_X
-PI_Y = LIDAR_Y - 32.0 - 48.0 + PI_LENGTH / 2
+PI_Y = LIDAR_Y - LIDAR_PILLAR_OFFSET - PI_PAST_RIGHT_PILLARS + PI_LENGTH / 2
 PI = (PI_X, PI_Y, PI_WIDTH, PI_LENGTH)               # USB-A to the left, USB-C forward
 PI_FRONT_X = PI_X + PI_WIDTH / 2
 PI_HOLE_END_Y = PI_Y - PI_LENGTH / 2
@@ -118,17 +126,18 @@ PI_LIDAR_USB_X = PI_FRONT_X - PI_FAR_USB_STACK       # the rear stack; the Pico 
 LIDAR_HOLES = [(LIDAR_X + sx * LIDAR_HOLE_SPACING / 2, LIDAR_Y + sy * LIDAR_HOLE_SPACING / 2)
                for sx in (1, -1) for sy in (1, -1)]
 PILLAR_TO_PLATE_EDGE = 6.0           # room round each hole for its counterbore
-LIDAR_PLATE_FRONT_X = LIDAR_X + 32.0 + PILLAR_TO_PLATE_EDGE
-LIDAR_PLATE_BACK_X = LIDAR_X - 32.0 - PILLAR_TO_PLATE_EDGE
+LIDAR_PLATE_FRONT_X = LIDAR_X + LIDAR_PILLAR_OFFSET + PILLAR_TO_PLATE_EDGE
+LIDAR_PLATE_BACK_X = LIDAR_X - LIDAR_PILLAR_OFFSET - PILLAR_TO_PLATE_EDGE
 LIDAR_PLATE_LEFT_Y = 41.0            # extended left for the USB adapter
-LIDAR_PLATE_RIGHT_Y = LIDAR_Y - 32.0 - PILLAR_TO_PLATE_EDGE
+LIDAR_PLATE_RIGHT_Y = LIDAR_Y - LIDAR_PILLAR_OFFSET - PILLAR_TO_PLATE_EDGE
 LIDAR_PLATE = ((LIDAR_PLATE_FRONT_X + LIDAR_PLATE_BACK_X) / 2,
                (LIDAR_PLATE_LEFT_Y + LIDAR_PLATE_RIGHT_Y) / 2,
                LIDAR_PLATE_FRONT_X - LIDAR_PLATE_BACK_X,
                LIDAR_PLATE_LEFT_Y - LIDAR_PLATE_RIGHT_Y)
 LIDAR_PLATE_THICKNESS = 4.0
 LIDAR_PLATE_CORNER_RADIUS = PILLAR_TO_PLATE_EDGE  # round the pillar holes, so an even wall
-LIDAR_PLATE_HEIGHT = 35.0            # 11.5 mm of air above the Pi's fan
+LIDAR_PLATE_STANDOFFS = (20.0, 15.0)  # M3, stacked from the upper deck's top
+LIDAR_PLATE_HEIGHT = sum(LIDAR_PLATE_STANDOFFS)  # clears the Pi's USB ports
 # (diameter, depth). From the top: an M3 x 6 grips 4 mm of the standoff, as on the upper deck.
 PLATE_PILLAR_COUNTERBORE = (6.5, 2.0)
 # From below: an M2.5 x 6 goes 3.5 mm into the LiDAR, under its 4 mm limit.

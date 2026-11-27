@@ -7,7 +7,7 @@ in the IMU's own axes, gyro offset already removed by the bridge.
 import csv
 import sys
 
-from bag_reader import bag_messages
+from bag_reader import bag_messages, header_stamp_s
 
 
 def main():
@@ -17,9 +17,8 @@ def main():
 
     rows = []
     for _, imu in bag_messages(bag_path, ["/imu/data_raw"]):
-        stamp = imu.header.stamp.sec + imu.header.stamp.nanosec * 1e-9
         a, g = imu.linear_acceleration, imu.angular_velocity
-        rows.append([stamp, a.x, a.y, a.z, g.x, g.y, g.z])
+        rows.append([header_stamp_s(imu), a.x, a.y, a.z, g.x, g.y, g.z])
     if not rows:
         sys.exit(f"No /imu/data_raw messages in {bag_path}")
 

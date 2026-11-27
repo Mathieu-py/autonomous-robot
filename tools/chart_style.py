@@ -1,6 +1,4 @@
-"""Colours, styling and the log reader shared by the plotting tools."""
-import sys
-
+"""Colours and styling shared by the plotting tools."""
 import matplotlib
 
 matplotlib.use("Agg")
@@ -45,24 +43,3 @@ def label_events(ax, events, fontsize):
         ax.annotate(text, (x, 1.0), xycoords=("data", "axes fraction"),
                     xytext=(3, -3), textcoords="offset points", color=INK_2,
                     fontsize=fontsize, va="top", rotation=90)
-
-
-def read_log_rows(path, column_count, text_columns=0):
-    """The firmware's CSV rows, also from a PuTTY log with other lines mixed in.
-    The last text_columns fields stay text; the rest are parsed as floats.
-    Exits if there are none."""
-    rows = []
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            parts = line.strip().split(",")
-            if len(parts) != column_count:
-                continue
-            numbers = parts[:column_count - text_columns]
-            try:
-                rows.append([float(p) for p in numbers]
-                            + parts[len(numbers):])
-            except ValueError:
-                continue
-    if not rows:
-        sys.exit(f"No {column_count}-column log lines found in {path}")
-    return rows

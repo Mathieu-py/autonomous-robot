@@ -13,6 +13,7 @@ Usage (ROS 2 sourced; the bridge and robot.launch.py running):
                                                   # right
 """
 import math
+import signal
 import sys
 import time
 
@@ -28,8 +29,12 @@ MIN_SPEED_FRACTION = 0.2  # while closing in, so a move can't stall short
 # as ROS By Example's angular_tolerance does for turns.
 STRAIGHT_RUN_ON_M = 0.014
 TURN_RUN_ON_RAD = math.radians(3.0)
+# Per kind of move: cruise speed, acceleration, and how far it carries on.
+MOVE_LIMITS = {"straight": (LINEAR_MPS, LINEAR_ACCEL_MPS2, STRAIGHT_RUN_ON_M),
+               "spin": (ANGULAR_RADPS, ANGULAR_ACCEL_RADPS2, TURN_RUN_ON_RAD)}
 COMMAND_PERIOD_S = 0.02
 POSE_WAIT_S = 10.0
+POSE_TIMEOUT_S = 0.3  # 15 EKF periods; about 9 deg or 30 mm driven blind
 SETTLE_S = 1.5  # after stopping, so the report includes the coast to a stop
 ODOM_FRAME = "odom"
 BASE_FRAME = "base_link"
@@ -62,6 +67,26 @@ class PoseTracker:
         dx, dy = x - start_x, y - start_y
         return (dx * math.cos(start_yaw) + dy * math.sin(start_yaw),
                 -dx * math.sin(start_yaw) + dy * math.cos(start_yaw))
+
+
+class NewPoses:
+    """Feeds a tracker only poses with a new stamp, and knows when the last
+    one arrived (monotonic seconds)."""
+
+    def __init__(self, tracker):
+        self.tracker = tracker
+        self.stamp = None
+        self.arrived_s = -math.inf
+
+    def feed(self, stamp, x, y, yaw, now_s):
+        if stamp == self.stamp:
+            return
+        self.stamp = stamp
+        self.arrived_s = now_s
+        self.tracker.feed(x, y, yaw)
+
+    def is_stale(self, now_s):
+        return now_s - self.arrived_s > POSE_TIMEOUT_S
 
 
 def yaw_from_quaternion(z, w):
@@ -110,17 +135,20 @@ def main():
     from tf2_ros.buffer import Buffer
     from tf2_ros.transform_listener import TransformListener
 
-    # Ctrl+C stays a KeyboardInterrupt, so the stop below still gets sent.
+    # Ctrl+C, a closed terminal and kill all reach the stop in finally below.
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    for stop_signal in (signal.SIGHUP, signal.SIGTERM):
+        signal.signal(stop_signal, signal.default_int_handler)
     node = rclpy.create_node("odom_drive")
     publisher = node.create_publisher(Twist, "cmd_vel", 10)
     tf_buffer = Buffer()
     tf_listener = TransformListener(tf_buffer, node)  # noqa: F841, kept alive
-    pose = PoseTracker()  # what it steers by
-    wheels = PoseTracker()  # /odom alone, for checking the wheel calibration
+    ekf_tracker = PoseTracker()  # what it steers by
+    ekf_poses = NewPoses(ekf_tracker)
+    wheel_tracker = PoseTracker()  # /odom alone, to check wheel calibration
     node.create_subscription(
         Odometry, "odom",
-        lambda msg: wheels.feed(
+        lambda msg: wheel_tracker.feed(
             msg.pose.pose.position.x, msg.pose.pose.position.y,
             yaw_from_quaternion(msg.pose.pose.orientation.z,
                                 msg.pose.pose.orientation.w)),
@@ -132,10 +160,12 @@ def main():
                                                    Time())
         except TransformException:
             return
+        stamp = transform.header.stamp
         position = transform.transform.translation
         rotation = transform.transform.rotation
-        pose.feed(position.x, position.y,
-                  yaw_from_quaternion(rotation.z, rotation.w))
+        ekf_poses.feed((stamp.sec, stamp.nanosec), position.x, position.y,
+                       yaw_from_quaternion(rotation.z, rotation.w),
+                       time.monotonic())
 
     def spin_for(seconds):
         end = time.monotonic() + seconds
@@ -153,32 +183,37 @@ def main():
     planned_turn_rad = 0.0
 
     def drive_move(kind, amount):
-        """Drives one move by the pose; False if it made no progress in time.
-        Each move aims short by how far the robot carries on after it."""
+        """Drives one move by the pose; False if it stopped early. Each move
+        aims short by how far the robot carries on after it."""
         nonlocal planned_turn_rad
         is_straight = kind == "straight"
-        target = abs(amount) if is_straight else math.radians(abs(amount))
-        cruise = LINEAR_MPS if is_straight else ANGULAR_RADPS
-        accel = LINEAR_ACCEL_MPS2 if is_straight else ANGULAR_ACCEL_RADPS2
+        cruise, accel, run_on = MOVE_LIMITS[kind]
         if is_straight:
-            start = pose.last
+            target = abs(amount)
+            start = ekf_tracker.last
 
             def remaining():
-                return target - STRAIGHT_RUN_ON_M - pose.distance_from(start)
+                return target - run_on - ekf_tracker.distance_from(start)
         else:
+            target = math.radians(abs(amount))
             planned_turn_rad += math.radians(amount)
             direction = math.copysign(1.0, amount)
 
             def remaining():
-                return ((planned_turn_rad - pose.turn_rad) * direction
-                        - TURN_RUN_ON_RAD)
+                return ((planned_turn_rad - ekf_tracker.turn_rad) * direction
+                        - run_on)
 
         deadline = time.monotonic() + 2 * target / cruise + 5.0
         speed = 0.0
         while remaining() > 0:
+            if ekf_poses.is_stale(time.monotonic()):
+                print(f"Stopped early: no new pose for {POSE_TIMEOUT_S} s. Is "
+                      "robot.launch.py running? Over WiFi, run this on the "
+                      "Pi.")
+                return False
             if time.monotonic() > deadline:
-                print("Stopped early: no progress. Is a Pico stop active? "
-                      "Check the bridge's journal.")
+                print("Stopped early: the move took too long. Is a Pico stop "
+                      "active? Check /pico/stop_reason.")
                 return False
             speed = ramped_speed(speed, remaining(), cruise, accel,
                                  COMMAND_PERIOD_S)
@@ -191,14 +226,16 @@ def main():
             spin_for(COMMAND_PERIOD_S)
         return True
 
-    give_up_at = time.monotonic() + POSE_WAIT_S
-    while ((pose.start is None or wheels.start is None)
-           and time.monotonic() < give_up_at):
-        spin_for(0.1)
-    if pose.start is None or wheels.start is None:
-        sys.exit(f"No /odom or {ODOM_FRAME} -> {BASE_FRAME} transform: is "
-                 "robot_description's robot.launch.py running?")
+    def wait_for_poses():
+        give_up_at = time.monotonic() + POSE_WAIT_S
+        while ((ekf_tracker.start is None or wheel_tracker.start is None)
+               and time.monotonic() < give_up_at):
+            spin_for(0.1)
+        if ekf_tracker.start is None or wheel_tracker.start is None:
+            sys.exit(f"No /odom or {ODOM_FRAME} -> {BASE_FRAME} transform: is "
+                     "robot_description's robot.launch.py running?")
 
+    wait_for_poses()
     try:
         for i, (kind, amount) in enumerate(moves):
             if i > 0:
@@ -206,12 +243,12 @@ def main():
             if not drive_move(kind, amount):
                 break
     except KeyboardInterrupt:
-        print("Stopped by Ctrl+C.")
+        print("Interrupted: stopping.")
     finally:
         stop()
 
-    print_report(f"The pose ({ODOM_FRAME} -> {BASE_FRAME})", pose)
-    print_report("/odom (the wheels alone)", wheels)
+    print_report(f"The pose ({ODOM_FRAME} -> {BASE_FRAME})", ekf_tracker)
+    print_report("/odom (the wheels alone)", wheel_tracker)
     node.destroy_node()
     rclpy.shutdown()
 

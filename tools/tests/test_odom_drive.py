@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from odom_drive import (PoseTracker, moves_for, ramped_speed,
-                        yaw_from_quaternion)
+from odom_drive import (POSE_TIMEOUT_S, NewPoses, PoseTracker, moves_for,
+                        ramped_speed, yaw_from_quaternion)
 
 
 def test_distance_is_in_a_straight_line_not_along_the_wobble():
@@ -70,3 +70,20 @@ def test_slows_so_it_could_stop_in_what_remains():
 
 def test_keeps_a_fifth_of_cruise_until_the_end():
     assert ramped_speed(0.2, 1e-6, 0.5, 3.2, 0.02) == pytest.approx(0.1)
+
+
+def test_feeds_each_stamp_once():
+    tracker = PoseTracker()
+    poses = NewPoses(tracker)
+    poses.feed((1, 0), 0.0, 0.0, 0.0, now_s=10.0)
+    poses.feed((1, 0), 5.0, 5.0, 1.0, now_s=10.1)  # the same pose, read again
+    assert tracker.last == (0.0, 0.0, 0.0)
+
+
+def test_a_pose_that_stops_updating_goes_stale():
+    poses = NewPoses(PoseTracker())
+    assert poses.is_stale(now_s=0.0)
+    poses.feed((1, 0), 0.0, 0.0, 0.0, now_s=10.0)
+    poses.feed((1, 0), 0.0, 0.0, 0.0, now_s=11.0)  # frozen: same stamp
+    assert not poses.is_stale(now_s=10.0 + POSE_TIMEOUT_S / 2)
+    assert poses.is_stale(now_s=11.0)

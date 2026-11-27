@@ -24,3 +24,11 @@ As of 27 November 2026:
 - [milestone-3.md](docs/milestone-3.md): milestone 3 write-up: the LiDAR and its mount, the laser's frame, and the first map checked with a tape measure
 - [results/](results/README.md): test data, logs and charts, such as PID step responses
 - [tools/](tools/): helper scripts, such as `plot_pid.py` for charting a PID log
+
+## Tests
+
+Every suite runs on GitHub on each push ([tests.yml](.github/workflows/tests.yml)). To run them yourself:
+
+- Firmware logic, on the laptop (needs `libgtest-dev`): `cmake -S firmware/tests -B firmware/tests/build && cmake --build firmware/tests/build && ctest --test-dir firmware/tests/build`
+- Python tools (needs `python3-numpy`, `python3-matplotlib`, `python3-yaml` and `python3-pytest`; the tools that read recordings also need ROS 2 sourced): `python3 -m pytest tools/tests`
+- ROS packages: `colcon test` from `~/robot_ws`, as in [pi-setup.md](docs/pi-setup.md) section 2.
