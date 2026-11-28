@@ -25,10 +25,10 @@ LINEAR_ACCEL_MPS2 = 2.5
 ANGULAR_ACCEL_RADPS2 = 3.2
 MIN_SPEED_FRACTION = 0.2  # while closing in, so a move can't stall short
 # How far the robot carries on after deciding to stop, by the EKF, with this
-# script on the Pi (square tests, 26 Nov 2026). Each move aims short by this,
+# script on the Pi (square tests, run 06, 28 Nov 2026). Each move aims short by this,
 # as ROS By Example's angular_tolerance does for turns.
-STRAIGHT_RUN_ON_M = 0.014
-TURN_RUN_ON_RAD = math.radians(3.0)
+STRAIGHT_RUN_ON_M = 0.011
+TURN_RUN_ON_RAD = math.radians(2.0)
 # Per kind of move: cruise speed, acceleration, and how far it carries on.
 MOVE_LIMITS = {"straight": (LINEAR_MPS, LINEAR_ACCEL_MPS2, STRAIGHT_RUN_ON_M),
                "spin": (ANGULAR_RADPS, ANGULAR_ACCEL_RADPS2, TURN_RUN_ON_RAD)}

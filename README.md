@@ -11,7 +11,7 @@ As of 27 November 2026:
 - **Parts:** ordered and received.
 - **Simulation:** ROS 2 Jazzy, Gazebo and Nav2 run under WSL2. The Nav2 TurtleBot demo reaches its goals at about real time.
 - **Hardware:** every part passed its [bench tests](docs/bench-tests.md). The robot is built and drives on the floor on its own battery: PID speed control with bumper, low-battery, stall and watchdog stops on the Pico, and ROS 2 on the Pi, which powers itself off when the battery runs low.
-- **Milestones:** [milestone 1](docs/milestone-1.md) (drive it), [milestone 2](docs/milestone-2.md) (know where it is) and [milestone 3](docs/milestone-3.md) (see) are finished: after a 1 m square, the robot's own EKF knows where it ended to within 0.2–0.4° and 8 mm, and its first map of a room, from the LiDAR and SLAM Toolbox, matches a tape measure to within 4 cm. Each milestone ends with a measurement written up in this repo.
+- **Milestones:** [milestone 1](docs/milestone-1.md) (drive it), [milestone 2](docs/milestone-2.md) (know where it is) and [milestone 3](docs/milestone-3.md) (see) are finished: after a 1 m square, the robot's own EKF knows where it ended to within 0.2–0.9° and 8–15 mm over three days, and its first map of a room, from the LiDAR and SLAM Toolbox, matches a tape measure to within 4 cm. Each milestone ends with a measurement written up in this repo.
 
 ## Documents
 

@@ -63,8 +63,8 @@ Each was tested by replaying a recording through the `Ekf` class with one thing 
 | None (as built), run 04 | 0.17° too much, 8.3 mm | |
 | Learn the gyro's offset only while still, run 03 | Spread 1.6–2.2° instead of 0.09° | The pauses between moves are too short to follow an offset that drifts within a square |
 | Rescale the gyro to run 03's floor results | 0.53° too little, 16 mm | The gyro's scale wasn't the same in run 02; aliasing was the cause |
-| Tell it the gyro's lower noise with the 10 Hz filter, run 04 | 0.48° too much, 11 mm | The noise setting also covers the gyro's errors that aren't noise, such as its drifting offset |
-| Correct the wheel spacing for `/odom`'s 0.74% on spins, run 04 | 0.36–0.50° too much, 10–11 mm | The gyro reads slightly high and the wheels low, and the EKF's blend lands closest to the truth |
+| Tell it the gyro's lower noise with the 10 Hz filter, run 04 | 0.48° too much, 11 mm | The noise setting also covers the gyro's errors that aren't noise, such as its drifting offset; also worse across runs 04–06 |
+| Correct the wheel spacing for `/odom`'s 0.74% on spins, run 04 | 0.36–0.50° too much, 10–11 mm | The gyro reads slightly high and the wheels low, and the EKF's blend lands closest to the truth; also worse across runs 04–06 |
 | Steer by the gyro alone, run 04 | 2.0° too much, 41 mm | The wheels are what let the EKF follow the gyro's offset |
 | Wait 0.2–2 s after each turn before learning the offset again, run 04 (27 November) | 0.26–1.16° too much, 9.2–17.1 mm | Worse in runs 03 and 05 too: the offset drifts within a square, and the wait cuts the time it's learned in |
 | Predict along the midpoint heading, run 04 (27 November) | Unchanged, 0.17° too much, 8.3 mm | A square never moves and turns at once; on simulated arcs it helped a wide one and hurt a tight one |
