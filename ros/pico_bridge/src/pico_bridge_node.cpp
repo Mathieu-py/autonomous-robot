@@ -31,7 +31,7 @@ using SteadyClock = std::chrono::steady_clock;
 constexpr double kRadiansPerRev = 2.0 * std::numbers::pi;
 constexpr double kDegreesPerRadian = 180.0 / std::numbers::pi;
 constexpr size_t kGyroBiasWindowSize = 50;         // 1 s at 50 Hz
-constexpr double kGyroBiasMaxSpreadRadps = 0.035;  // 2 deg/s
+constexpr double kGyroBiasMaxSpreadRadps = 0.0105;  // 0.6 deg/s; still: 0.3
 constexpr auto kImuSilence = std::chrono::seconds(1);
 
 SteadyClock::duration steady_duration(double seconds) {

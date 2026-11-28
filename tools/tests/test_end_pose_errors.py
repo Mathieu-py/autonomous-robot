@@ -5,7 +5,7 @@ import pytest
 
 from end_pose_errors import (FLAG_SPACING_MM, PoseChange, drives, errors,
                              floor_end_pose, moves_of, overshoots,
-                             planned_turn_deg, pose_change)
+                             planned_turn_deg, pose_change, sample_sd)
 
 
 def flag_readings(ahead_mm, left_mm, left_over_deg):
@@ -116,3 +116,8 @@ def test_a_window_without_poses_stops_the_tool():
     poses = np.array([(0.0, 0.0, 0.0, 0.0)])
     with pytest.raises(SystemExit):
         pose_change(poses, 5.0, 6.0)
+
+
+def test_spread_is_the_sample_standard_deviation():
+    assert sample_sd([1.0, 3.0]) == pytest.approx(math.sqrt(2.0))
+    assert math.isnan(sample_sd([1.0]))

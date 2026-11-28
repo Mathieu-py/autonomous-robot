@@ -141,6 +141,11 @@ def errors(estimate, real, planned_deg):
     return EstimateError(turn_error_deg, end_error_mm)
 
 
+def sample_sd(values):
+    """The spread of a few squares or turns; nan for fewer than two."""
+    return float(np.std(values, ddof=1)) if len(values) > 1 else math.nan
+
+
 def print_summary(title, rows):
     if not rows:
         return
@@ -155,7 +160,7 @@ def print_summary(title, rows):
         ends = [r[name].end_error_mm for r in rows]
         per_turn = np.mean([t / abs(r["planned"]) for t, r in zip(turns, rows)])
         print(f"  {name:19s} turn {np.mean(turns):+.2f} deg "
-              f"(spread {np.std(turns):.2f}, {100 * per_turn:+.3f}%), "
+              f"(spread {sample_sd(turns):.2f}, {100 * per_turn:+.3f}%), "
               f"end {np.mean(ends):4.1f} mm off (worst {max(ends):4.1f})")
 
 
@@ -216,10 +221,10 @@ def main():
     parts = []
     if all_turns:
         parts.append(f"turns {np.mean(all_turns):+.2f} deg (spread "
-                     f"{np.std(all_turns):.2f})")
+                     f"{sample_sd(all_turns):.2f})")
     if all_sides:
         parts.append(f"sides {np.mean(all_sides):+.1f} mm (spread "
-                     f"{np.std(all_sides):.1f})")
+                     f"{sample_sd(all_sides):.1f})")
     print("\nPast each target by our EKF: " + ", ".join(parts))
 
 
