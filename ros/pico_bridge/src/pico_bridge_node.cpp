@@ -30,7 +30,7 @@ using SteadyClock = std::chrono::steady_clock;
 
 constexpr double kRadiansPerRev = 2.0 * std::numbers::pi;
 constexpr double kDegreesPerRadian = 180.0 / std::numbers::pi;
-constexpr size_t kGyroBiasWindowSize = 50;         // 1 s at 50 Hz
+constexpr size_t kGyroBiasWindowSize = 50;          // 1 s at 50 Hz
 constexpr double kGyroBiasMaxSpreadRadps = 0.0105;  // 0.6 deg/s; still: 0.3
 constexpr auto kImuSilence = std::chrono::seconds(1);
 
@@ -82,16 +82,20 @@ class PicoBridgeNode : public rclcpp::Node {
     // Latched, so a late subscriber still learns why the motors stopped.
     stop_reason_publisher_ = create_publisher<std_msgs::msg::String>(
         "pico/stop_reason", rclcpp::QoS(1).transient_local());
-    timer_ = create_wall_timer(std::chrono::milliseconds(20),
-                               [this] { exchange_with_pico(); });
+    // Commands at the Pico's 50 Hz; lines read often, so each is stamped
+    // within about 2 ms of arriving.
+    command_timer_ = create_wall_timer(std::chrono::milliseconds(20),
+                                       [this] { send_command(); });
+    read_timer_ = create_wall_timer(std::chrono::milliseconds(2),
+                                    [this] { read_lines(); });
     RCLCPP_INFO(get_logger(), "Connected to the Pico on %s",
                 port_path_.c_str());
   }
 
  private:
-  // Every 20 ms: send the command, then handle the Pico's lines.
-  void exchange_with_pico() {
-    serial_.write_text(command_for_pico());
+  void send_command() { serial_.write_text(command_for_pico()); }
+
+  void read_lines() {
     serial_.read_available(received_);
     while (const auto line = take_line(received_)) {
       if (const auto status = parse_status_line(*line)) {
@@ -273,7 +277,8 @@ class PicoBridgeNode : public rclcpp::Node {
       battery_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr stop_reason_publisher_;
-  rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr command_timer_;
+  rclcpp::TimerBase::SharedPtr read_timer_;
 };
 
 }  // namespace pico_bridge

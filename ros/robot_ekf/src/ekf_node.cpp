@@ -56,7 +56,7 @@ class EkfNode : public rclcpp::Node {
                           kYawYaw = 35;
   // As wheel_odometry: z, roll and pitch aren't estimated.
   static constexpr double kUnobservedVariance = 1e6;
-  // The wheels come through wheel_odometry, a little behind the gyro.
+  // Readings wait for both sensors; this long if one goes quiet.
   static constexpr double kReorderDelayS = 0.03;
   // Further back than this is a replay restarting or the clock stepping back.
   static constexpr double kTimeJumpS = 1.0;
@@ -66,6 +66,7 @@ class EkfNode : public rclcpp::Node {
     WheelReading wheels;
   };
   using Reading = std::variant<StampedWheels, GyroReading>;
+  using Readings = ReorderBuffer<Reading, std::variant_size_v<Reading>>;
 
   void on_wheels(const nav_msgs::msg::Odometry& msg) {
     const auto& twist = msg.twist;
@@ -89,7 +90,7 @@ class EkfNode : public rclcpp::Node {
       ekf_.restart();
       readings_.clear();
     }
-    if (!readings_.add(t_s, reading)) {
+    if (!readings_.add(reading.index(), t_s, reading)) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
                            "Dropped a reading that arrived too late");
     }
@@ -159,7 +160,7 @@ class EkfNode : public rclcpp::Node {
   }
 
   Ekf ekf_;
-  ReorderBuffer<Reading> readings_;
+  Readings readings_;
   std::string odom_frame_;
   std::string base_frame_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;

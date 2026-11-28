@@ -30,7 +30,7 @@ Finished on 27 November 2026. The robot maps a room with its LiDAR, SLAM Toolbox
 - **The first plate design.** Its pillar holes were 3 mm from the edges, leaving 1.3 mm of plastic beside each; the LiDAR's screws through the 4 mm plate would have gripped only 2 mm; and it hung out behind the Pi to put the adapter by rear-facing USB ports. The review widened it and added counterbores, and once the Pi was turned, the adapter moved to the LiDAR's side.
 - **udev finishes after its command returns.** `ls /dev/lidar` straight after `udevadm trigger` found nothing; `udevadm settle` waits for it.
 - **Measuring on a map needs straight walls.** One tape line ended at a corner, and a line fitted to the cells there mixed two walls and gave 1.319 m. Measured on the wall's straight part just below the corner, the map gives 1.225 m, against 1.235 m by tape.
-- **Scans arrive ahead of the pose.** RViz occasionally drops a scan with "extrapolation into the future": our EKF's pose runs about 40 ms behind the sensors, because it sorts their readings by time. SLAM Toolbox waits up to 0.2 s for the pose, so it isn't affected.
+- **Scans arrive ahead of the pose.** RViz occasionally drops a scan with "extrapolation into the future": our EKF's pose ran about 40 ms behind the sensors, because it sorted their readings by time with a 30 ms margin; since 28 November it runs a few ms behind. SLAM Toolbox waits up to 0.2 s for the pose, so it isn't affected.
 
 ## Not done yet
 
